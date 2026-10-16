@@ -11,7 +11,7 @@ export default function AudioEngine() {
   return <audio ref={ref} hidden />;
 }
 
-export function useAudioEngine(): React.RefObject<HTMLAudioElement> {
+function useAudioEngine(): React.RefObject<HTMLAudioElement> {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const queue = useStore((s) => s.queue);
