@@ -25,6 +25,21 @@ export function fmtTotal(ms: number): string {
   return `${min} min`;
 }
 
+/** « 12,4 Mo » à partir d'un nombre d'octets. */
+export function fmtBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 octet';
+  const units = ['octet', 'Ko', 'Mo', 'Go', 'To'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const rounded = unit === 0 || value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  const label = `${String(rounded).replace('.', ',')} ${units[unit]}`;
+  return unit === 0 && rounded > 1 ? `${label}s` : label;
+}
+
 /** Dégradé CSS stable dérivé d'une chaîne (id ou nom), esthétique Spotify. */
 export function gradientOf(seed: string): string {
   const hue = [...seed].reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) % 360, 7);

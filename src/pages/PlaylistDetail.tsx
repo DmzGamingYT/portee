@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { fmtTotal } from '../lib/format';
 import TrackRow from '../components/TrackRow';
 import { gradientOf } from '../lib/format';
+import { isPlayable } from '../lib/tracks';
 import Icons from '../components/icons';
 
 /** Page détaillée d'une playlist locale — « liked » est une pseudo-playlist en lecture seule. */
@@ -35,7 +36,7 @@ export default function PlaylistDetail() {
   const name = isLiked ? 'Titres likés' : playlist!.name;
   const cover = isLiked ? undefined : playlist!.tracks[0]?.cover;
   const tracks = isLiked ? liked : playlist!.tracks;
-  const playable = tracks.filter((t) => t.preview);
+  const playable = tracks.filter(isPlayable);
   const total = tracks.reduce((acc, t) => acc + (t.durationMs ?? 0), 0);
 
   return (
@@ -127,6 +128,7 @@ export default function PlaylistDetail() {
             track={t}
             context={playable}
             index={playable.findIndex((x) => x.id === t.id)}
+            contextName={name}
             onRemove={
               isLiked
                 ? undefined

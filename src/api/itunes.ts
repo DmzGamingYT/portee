@@ -1,9 +1,23 @@
 import type { Album, Artist, Track } from '../types';
 
 /**
- * Client de l'API publique iTunes via le proxy local /it/api/*.
- * Métadonnées réelles + extraits officiels ~30 s, sans clé API.
+ * Client de l'API publique iTunes.
+ *
+ * Stratégie :
+ *  1. Essaie d'abord le proxy local `/it/api/*` (Vite dev/preview) — évite
+ *     tout souci de CORS et profite du cache serveur.
+ *  2. En cas d'échec (404 = hébergement statique sans proxy, réseau, etc.),
+ *     bascule sur un appel direct à `https://itunes.apple.com` qui renvoie
+ *     `Access-Control-Allow-Origin: *` et fonctionne donc depuis un navigateur.
+ *
+ * Aucune clé API requise. Métadonnées réelles + extraits officiels ~30 s.
  */
+
+const PROXY_PREFIX = '/it/api/';
+const ITUNES_BASE = 'https://itunes.apple.com';
+const COUNTRY = 'FR';
+const LANG = 'fr_fr';
+const FETCH_TIMEOUT_MS = 15_000;
 
 export interface SearchSongsResponse {
   tracks: Track[];
@@ -15,47 +29,129 @@ export interface SearchAlbumsResponse {
   live: boolean;
 }
 
+export interface SearchArtistsResponse {
+  artists: Artist[];
+  live: boolean;
+}
+
 /* ---------------------------------- mapper --------------------------------- */
 
 function coverOf(url: string | undefined, size: number): string {
   if (!url) return '';
-  return url.replace(/\/\d+x\d+bb\./, `/${size}x${size}bb.`);
+  // iTunes renvoie du 60x60 / 100x100 : on demande du 600x600.
+  if (/\d+x\d+bb\./.test(url)) return url.replace(/\/\d+x\d+bb\./, `/${size}x${size}bb.`);
+  return url;
 }
 
-function mapTrack(r: any): Track {
+function toNumber(v: unknown): number | undefined {
+  const n = typeof v === 'string' ? Number(v) : (v as number);
+  return Number.isFinite(n) && (n as number) > 0 ? (n as number) : undefined;
+}
+
+function mapTrack(r: any): Track | null {
+  const trackId = toNumber(r.trackId);
+  if (!trackId || !r.trackName) return null;
+  const artistId = toNumber(r.artistId);
   return {
-    id: `t${r.trackId}`,
-    title: r.trackName ?? 'Titre inconnu',
-    artist: r.artistName ?? 'Artiste inconnu',
-    artistId: r.collectionArtistId ?? r.artistId,
-    album: r.collectionName ?? '',
-    collectionId: r.collectionId,
-    cover: coverOf(r.artworkUrl100, 600),
-    preview: r.previewUrl ?? undefined,
-    durationMs: r.trackTimeMillis ?? undefined,
-    genre: r.primaryGenreName ?? undefined,
+    id: `t${trackId}`,
+    title: String(r.trackName ?? 'Titre inconnu'),
+    artist: String(r.artistName ?? 'Artiste inconnu'),
+    artistId,
+    album: String(r.collectionName ?? ''),
+    collectionId: toNumber(r.collectionId),
+    cover: coverOf(typeof r.artworkUrl100 === 'string' ? r.artworkUrl100 : undefined, 600),
+    preview: typeof r.previewUrl === 'string' ? r.previewUrl : undefined,
+    durationMs: toNumber(r.trackTimeMillis) ?? undefined,
+    genre: typeof r.primaryGenreName === 'string' ? r.primaryGenreName : undefined,
   };
 }
 
-function mapAlbum(r: any): Album {
+function mapAlbum(r: any): Album | null {
+  const collectionId = toNumber(r.collectionId);
+  if (!collectionId || !r.collectionName) return null;
   return {
-    id: r.collectionId,
-    title: r.collectionName ?? 'Album',
-    artist: r.artistName ?? '',
-    artistId: r.artistId,
-    cover: coverOf(r.artworkUrl100, 600),
-    trackCount: r.trackCount ?? 0,
-    year: (r.releaseDate ?? '').slice(0, 4) || undefined,
-    genre: r.primaryGenreName ?? undefined,
+    id: String(collectionId),
+    title: String(r.collectionName ?? 'Album'),
+    artist: String(r.artistName ?? ''),
+    artistId: toNumber(r.artistId),
+    cover: coverOf(typeof r.artworkUrl100 === 'string' ? r.artworkUrl100 : undefined, 600),
+    trackCount: toNumber(r.trackCount) ?? 0,
+    year: typeof r.releaseDate === 'string' ? r.releaseDate.slice(0, 4) || undefined : undefined,
+    genre: typeof r.primaryGenreName === 'string' ? r.primaryGenreName : undefined,
   };
 }
 
 /* ---------------------------------- fetch ---------------------------------- */
 
-async function itFetch(path: string): Promise<any> {
-  const res = await fetch(`/it/api/${path}`); // proxy local (vite dev/preview)
-  if (!res.ok) throw new Error(`API iTunes HTTP ${res.status}`);
+function isAbort(err: unknown): boolean {
+  return (
+    err instanceof DOMException ? err.name === 'AbortError' :
+    typeof err === 'object' && err !== null && 'name' in err
+      ? (err as { name?: string }).name === 'AbortError'
+      : String(err).toLowerCase().includes('abort')
+  );
+}
+
+/** Combine le signal de l'appelant avec un timeout de sécurité. */
+function combinedSignal(signal?: AbortSignal): { signal: AbortSignal; cleanup: () => void } {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(new DOMException('timeout', 'AbortError')), FETCH_TIMEOUT_MS);
+  const cleanup = () => clearTimeout(timer);
+  if (!signal) return { signal: ctrl.signal, cleanup };
+  if (signal.aborted) {
+    cleanup();
+    return { signal: signal, cleanup: () => {} };
+  }
+  const onAbort = () => ctrl.abort(signal.reason ?? new DOMException('aborted', 'AbortError'));
+  signal.addEventListener('abort', onAbort, { once: true });
+  return {
+    signal: ctrl.signal,
+    cleanup: () => {
+      cleanup();
+      signal.removeEventListener('abort', onAbort);
+    },
+  };
+}
+
+async function fetchJson(url: string, signal: AbortSignal): Promise<any> {
+  const res = await fetch(url, {
+    signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} pour ${url}`);
   return res.json();
+}
+
+/**
+ * Interroge `search` ou `lookup` via le proxy local puis en direct.
+ * Lève `AbortError` si `signal` est annulé, sinon lève l'erreur réseau/HTTP.
+ */
+async function itFetch(path: string, signal?: AbortSignal): Promise<any> {
+  if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+  const { signal: sig, cleanup } = combinedSignal(signal);
+  try {
+    // 1) Proxy local (dev / preview Vite).
+    try {
+      const viaProxy = await fetchJson(`${PROXY_PREFIX}${path}`, sig);
+      return viaProxy;
+    } catch (proxyErr) {
+      if (isAbort(proxyErr)) throw proxyErr;
+      // 2) Repli direct : iTunes renvoie ACAO:* donc le navigateur l'accepte.
+      const viaDirect = await fetchJson(`${ITUNES_BASE}/${path}`, sig);
+      return viaDirect;
+    }
+  } finally {
+    cleanup();
+  }
+}
+
+function baseParams(term: string): URLSearchParams {
+  return new URLSearchParams({
+    term: term.trim(),
+    media: 'music',
+    country: COUNTRY,
+    lang: LANG,
+  });
 }
 
 /* ---------------------------------- search --------------------------------- */
@@ -64,15 +160,21 @@ export async function searchTracks(
   term: string,
   signal?: AbortSignal,
 ): Promise<SearchSongsResponse> {
+  const q = term.trim();
+  if (!q) return { tracks: [], live: true };
   try {
-    const qs = new URLSearchParams({ term, entity: 'song', limit: '50' });
-    const data = await itFetch(`search?${qs}`);
-    if (signal?.aborted) throw new Error('aborted');
-    const tracks = (data.results ?? []).filter((r: any) => r.trackName).map(mapTrack);
-    if (tracks.length === 0) throw new Error('aucun résultat');
+    const qs = baseParams(q);
+    qs.set('entity', 'song');
+    qs.set('limit', '50');
+    qs.set('attribute', 'mixTerm');
+    const data = await itFetch(`search?${qs}`, signal);
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    const tracks = ((data?.results ?? []) as any[])
+      .map(mapTrack)
+      .filter((t): t is Track => t !== null);
     return { tracks, live: true };
   } catch (err) {
-    if (signal?.aborted) throw err;
+    if (isAbort(err) || signal?.aborted) throw err;
     return { tracks: [], live: false };
   }
 }
@@ -81,57 +183,95 @@ export async function searchAlbums(
   term: string,
   signal?: AbortSignal,
 ): Promise<SearchAlbumsResponse> {
+  const q = term.trim();
+  if (!q) return { albums: [], live: true };
   try {
-    const qs = new URLSearchParams({ term, entity: 'album', limit: '24' });
-    const data = await itFetch(`search?${qs}`);
-    if (signal?.aborted) throw new Error('aborted');
-    const albums = (data.results ?? []).filter((r: any) => r.collectionName).map(mapAlbum);
-    if (albums.length === 0) throw new Error('aucun résultat');
+    const qs = baseParams(q);
+    qs.set('entity', 'album');
+    qs.set('limit', '24');
+    qs.set('attribute', 'albumTerm');
+    const data = await itFetch(`search?${qs}`, signal);
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    const albums = ((data?.results ?? []) as any[])
+      .map(mapAlbum)
+      .filter((a): a is Album => a !== null);
     return { albums, live: true };
   } catch (err) {
-    if (signal?.aborted) throw err;
+    if (isAbort(err) || signal?.aborted) throw err;
     return { albums: [], live: false };
   }
 }
 
-export async function searchArtists(term: string, signal?: AbortSignal): Promise<Artist[]> {
+export async function searchArtists(
+  term: string,
+  signal?: AbortSignal,
+): Promise<SearchArtistsResponse> {
+  const q = term.trim();
+  if (!q) return { artists: [], live: true };
   try {
-    const qs = new URLSearchParams({ term, entity: 'musicArtist', limit: '8' });
-    const data = await itFetch(`search?${qs}`);
-    if (signal?.aborted) throw new Error('aborted');
-    return (data.results ?? []).map((r: any) => ({
-      id: r.artistId,
-      name: r.artistName ?? '',
-      genre: r.primaryGenreName ?? undefined,
-    }));
+    const qs = baseParams(q);
+    qs.set('entity', 'musicArtist');
+    qs.set('limit', '8');
+    qs.set('attribute', 'artistTerm');
+    const data = await itFetch(`search?${qs}`, signal);
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    const artists: Artist[] = ((data?.results ?? []) as any[])
+      .filter((r) => toNumber(r.artistId) !== undefined && typeof r.artistName === 'string')
+      .map((r) => ({
+        id: String(r.artistId),
+        name: String(r.artistName ?? ''),
+        genre: typeof r.primaryGenreName === 'string' ? r.primaryGenreName : undefined,
+      }));
+    return { artists, live: true };
   } catch (err) {
-    if (signal?.aborted) throw err;
-    return [];
+    if (isAbort(err) || signal?.aborted) throw err;
+    return { artists: [], live: false };
   }
 }
 
 /* --------------------------------- lookup ---------------------------------- */
 
-export async function albumTracks(albumId: number): Promise<Track[]> {
-  const qs = new URLSearchParams({ id: String(albumId), entity: 'song', limit: '100' });
-  const data = await itFetch(`lookup?${qs}`);
-  return (data.results ?? [])
-    .filter((r: any) => r.wrapperType === 'track' && r.trackName)
-    .map(mapTrack);
+function lookupParams(id: number, entity: 'song' | 'album', limit: number): URLSearchParams {
+  return new URLSearchParams({
+    id: String(id),
+    country: COUNTRY,
+    lang: LANG,
+    entity,
+    limit: String(limit),
+  });
 }
 
-export async function artistTopSongs(artistId: number, limit = 20): Promise<Track[]> {
-  const qs = new URLSearchParams({ id: String(artistId), entity: 'song', limit: String(limit) });
-  const data = await itFetch(`lookup?${qs}`);
-  return (data.results ?? [])
-    .filter((r: any) => r.wrapperType === 'track' && r.trackName)
-    .map(mapTrack);
+function assertId(id: number): void {
+  if (!Number.isFinite(id) || id <= 0) throw new Error(`identifiant invalide : ${id}`);
 }
 
-export async function artistAlbums(artistId: number, limit = 12): Promise<Album[]> {
-  const qs = new URLSearchParams({ id: String(artistId), entity: 'album', limit: String(limit) });
-  const data = await itFetch(`lookup?${qs}`);
-  return (data.results ?? [])
-    .filter((r: any) => r.wrapperType === 'collection' && r.collectionName)
-    .map(mapAlbum);
+export async function albumTracks(albumId: number, signal?: AbortSignal): Promise<Track[]> {
+  assertId(albumId);
+  const qs = lookupParams(albumId, 'song', 200);
+  const data = await itFetch(`lookup?${qs}`, signal);
+  return ((data?.results ?? []) as any[])
+    .filter((r: any) => r.wrapperType === 'track' && r.trackId && r.trackName)
+    .map(mapTrack)
+    .filter((t): t is Track => t !== null);
+}
+
+export async function artistTopSongs(artistId: number, limit = 20, signal?: AbortSignal): Promise<Track[]> {
+  assertId(artistId);
+  const qs = lookupParams(artistId, 'song', Math.min(Math.max(limit, 1), 200));
+  qs.set('sort', 'popular');
+  const data = await itFetch(`lookup?${qs}`, signal);
+  return ((data?.results ?? []) as any[])
+    .filter((r: any) => r.wrapperType === 'track' && r.trackId && r.trackName)
+    .map(mapTrack)
+    .filter((t): t is Track => t !== null);
+}
+
+export async function artistAlbums(artistId: number, limit = 12, signal?: AbortSignal): Promise<Album[]> {
+  assertId(artistId);
+  const qs = lookupParams(artistId, 'album', Math.min(Math.max(limit, 1), 200));
+  const data = await itFetch(`lookup?${qs}`, signal);
+  return ((data?.results ?? []) as any[])
+    .filter((r: any) => r.wrapperType === 'collection' && r.collectionId && r.collectionName)
+    .map(mapAlbum)
+    .filter((a): a is Album => a !== null);
 }

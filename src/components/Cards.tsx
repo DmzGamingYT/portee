@@ -87,7 +87,17 @@ export function PlayFAB({
 
 /* ---------------------------------- cartes ---------------------------------- */
 
-export function TrackCard({ track, context, index }: { track: Track; context: Track[]; index: number }) {
+export function TrackCard({
+  track,
+  context,
+  index,
+  contextName,
+}: {
+  track: Track;
+  context: Track[];
+  index: number;
+  contextName?: string;
+}) {
   const play = useStore((s) => s.play);
   const currentId = useStore((s) => (s.index >= 0 && s.index < s.queue.length ? s.queue[s.index].id : null));
   const playing = useStore((s) => s.playing);
@@ -97,20 +107,27 @@ export function TrackCard({ track, context, index }: { track: Track; context: Tr
     <article className={`card track-card ${active ? 'active' : ''}`}>
       <div className="card-media">
         <Cover src={track.cover} alt={track.album} />
-        <PlayFAB playing={active} onClick={() => play(context, index, context[0]?.album || 'Accueil')} />
+        <PlayFAB
+          playing={active}
+          onClick={() => play(context, index, contextName ?? (context[0]?.album || 'Accueil'))}
+        />
       </div>
       <Link
         className="card-title"
-        to={track.collectionId ? `/album/${track.collectionId}` : '#'}
+        to={(track.spotifyAlbumId ?? track.collectionId) ? `/album/${track.spotifyAlbumId ?? track.collectionId}` : '#'}
         title={track.title}
         onClick={(e) => {
-          if (!track.collectionId) e.preventDefault();
+          if (!track.spotifyAlbumId && !track.collectionId) e.preventDefault();
         }}
       >
         {track.title}
       </Link>
       <span className="card-sub">
-        {track.artistId ? <Link to={`/artist/${track.artistId}`}>{track.artist}</Link> : track.artist}
+        {track.spotifyArtistId || track.artistId ? (
+          <Link to={`/artist/${track.spotifyArtistId ?? track.artistId}`}>{track.artist}</Link>
+        ) : (
+          track.artist
+        )}
       </span>
     </article>
   );
@@ -137,9 +154,13 @@ export function ArtistCard({ artist }: { artist: Artist }) {
   return (
     <Link className="card artist-card" to={`/artist/${artist.id}`}>
       <div className="card-media">
-        <span className="cover cover-empty round" style={{ aspectRatio: '1/1' }}>
-          {Icons.person(34)}
-        </span>
+        {artist.cover ? (
+          <Cover src={artist.cover} alt={artist.name} className="round" />
+        ) : (
+          <span className="cover cover-empty round" style={{ aspectRatio: '1/1' }}>
+            {Icons.person(34)}
+          </span>
+        )}
       </div>
       <span className="card-title" title={artist.name}>
         {artist.name}

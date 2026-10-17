@@ -5,10 +5,13 @@ import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import PlayerBar from './player/PlayerBar';
 import AudioEngine from './player/AudioEngine';
+import GlobalDropTarget from './GlobalDropTarget';
+import { useKeyboardShortcuts } from '../lib/useKeyboardShortcuts';
 
 /** Gabarit global : sidebar + (barre du haut / contenu) + barre de lecture + moteur audio. */
 export default function Layout() {
   const theme = useStore((s) => s.theme);
+  useKeyboardShortcuts();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -25,6 +28,7 @@ export default function Layout() {
       </div>
       <PlayerBar />
       <AudioEngine />
+      <GlobalDropTarget />
     </div>
   );
 }

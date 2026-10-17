@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { DEFAULT_ARTISTS, DEFAULT_GENRE, GENRES, useStore } from '../store';
-import { searchTracks } from '../api/itunes';
+import { unifiedSearchTracks } from '../api/search';
 import type { Track } from '../types';
 import { ChipBar, Shelf, Skeleton, TrackCard } from '../components/Cards';
+import DailyMixShelf from '../components/DailyMixShelf';
 import { gradientOf } from '../lib/format';
+import { diversifyTracks } from '../lib/tracks';
 
 interface ShelfItem {
   title: string;
   tracks: Track[];
+  live: boolean;
 }
 
 const SHELF_TERMS: Array<{ title: string; term: string }> = [
@@ -23,41 +26,94 @@ const SHELF_TERMS: Array<{ title: string; term: string }> = [
 export default function Home() {
   const [genre, setGenre] = useState<string>(DEFAULT_GENRE);
   const [shelves, setShelves] = useState<(ShelfItem | null)[]>(() => SHELF_TERMS.map(() => null));
+  const [genreShelf, setGenreShelf] = useState<ShelfItem | null>(null);
+  const [genreBusy, setGenreBusy] = useState(false);
 
   useEffect(() => {
-    let dead = false;
+    const ctrl = new AbortController();
     SHELF_TERMS.forEach((def, i) => {
-      searchTracks(def.term).then((res) => {
-        if (!dead) {
-          setShelves((s) => s.map((x, j) => (j === i ? { title: def.title, tracks: res.tracks } : x)));
-        }
-      });
+      unifiedSearchTracks(def.term, ctrl.signal)
+        .then((res) => {
+          if (ctrl.signal.aborted) return;
+          setShelves((s) => s.map((x, j) => (j === i ? { title: def.title, tracks: diversifyTracks(res.tracks, 2, 20), live: res.live } : x)));
+        })
+        .catch(() => {
+          if (ctrl.signal.aborted) return;
+          setShelves((s) => s.map((x, j) => (j === i ? { title: def.title, tracks: [], live: false } : x)));
+        });
     });
-    return () => {
-      dead = true;
-    };
+    return () => ctrl.abort();
   }, []);
+
+  // Les chips de genres pilotent une étagère dédiée en tête de page.
+  // « Tous » n'appelle rien : les étagères thématiques suffisent.
+  useEffect(() => {
+    if (genre === DEFAULT_GENRE) {
+      setGenreShelf(null);
+      setGenreBusy(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    setGenreBusy(true);
+    setGenreShelf(null);
+    unifiedSearchTracks(genre, ctrl.signal)
+      .then((res) => {
+        if (ctrl.signal.aborted) return;
+        setGenreShelf({ title: `Sélection ${genre}`, tracks: diversifyTracks(res.tracks, 2, 20), live: res.live });
+      })
+      .catch(() => {
+        if (ctrl.signal.aborted) return;
+        setGenreShelf({ title: `Sélection ${genre}`, tracks: [], live: false });
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setGenreBusy(false);
+      });
+    return () => ctrl.abort();
+  }, [genre]);
 
   return (
     <div className="home">
       <div className="home-head">
         <h1>{greeting()}</h1>
         <p className="muted home-sub">
-          Recherche, albums, playlists et extraits de 30 s officiels — aucune clé API requise.
+          Recherche, albums, playlists et extraits officiels de 30 s — et vos propres
+          fichiers audio, lus en entier. iTunes sans compte, Spotify (métadonnées) si vous le connectez.
         </p>
       </div>
 
       <QuickPlaylists />
 
+      <RecentlyPlayed />
+
+      <DailyMixShelf />
+
       <ChipBar chips={GENRES} active={genre} onPick={setGenre} />
+
+      {genre !== DEFAULT_GENRE && (
+        genreBusy ? (
+          <ShelfSkeleton />
+        ) : genreShelf && genreShelf.tracks.length > 0 ? (
+          <Shelf title={genreShelf.title}>
+            {genreShelf.tracks.map((t, j) => (
+              <TrackCard key={t.id} track={t} context={genreShelf.tracks} index={j} contextName={genreShelf.title} />
+            ))}
+          </Shelf>
+        ) : genreShelf && !genreShelf.live ? (
+          <p className="muted empty-inline">Sélection indisponible pour le moment.</p>
+        ) : null
+      )}
 
       {shelves.map((s, i) =>
         s ? (
-          <Shelf key={i} title={s.title}>
-            {s.tracks.map((t, j) => (
-              <TrackCard key={t.id} track={t} context={s.tracks} index={j} />
-            ))}
-          </Shelf>
+          s.tracks.length > 0 ? (
+            <Shelf key={i} title={s.title}>
+              {s.tracks.map((t, j) => (
+                <TrackCard key={t.id} track={t} context={s.tracks} index={j} contextName={s.title} />
+              ))}
+            </Shelf>
+          ) : s.live ? null : (
+            <p key={i} className="muted empty-inline">{s.title} : indisponible pour le moment.</p>
+          )
         ) : (
           <ShelfSkeleton key={`sk${i}`} />
         )
@@ -113,29 +169,60 @@ function QuickPlaylists() {
   );
 }
 
+/** Derniers titres réellement écoutés (alimenté par le moteur audio). */
+function RecentlyPlayed() {
+  const history = useStore((s) => s.history);
+  const nav = useNavigate();
+  if (history.length === 0) return null;
+
+  return (
+    <Shelf title="Écoutés récemment" onMore={() => nav('/history')}>
+      {history.slice(0, 12).map((t, i) => (
+        <TrackCard
+          key={t.id}
+          track={t}
+          context={history}
+          index={i}
+          contextName="Écoutés récemment"
+        />
+      ))}
+    </Shelf>
+  );
+}
+
 /** « À découvrir aujourd'hui » : les titres réels d'un artiste du jour. */
 function ArtistSpotlight() {
-  const [artist, ] = useState<string>(
+  const [artist] = useState<string>(
     () => DEFAULT_ARTISTS[new Date().getDate() % DEFAULT_ARTISTS.length]
   );
   const [tracks, setTracks] = useState<Track[] | null>(null);
 
   useEffect(() => {
-    let dead = false;
+    const ctrl = new AbortController();
     setTracks(null);
-    searchTracks(artist).then((res) => {
-      if (!dead) setTracks(res.tracks.slice(0, 12));
-    });
-    return () => {
-      dead = true;
-    };
+    unifiedSearchTracks(artist, ctrl.signal)
+      .then((res) => {
+        if (!ctrl.signal.aborted) setTracks(diversifyTracks(res.tracks, 2, 12));
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setTracks([]);
+      });
+    return () => ctrl.abort();
   }, [artist]);
 
   return (
     <Shelf title={`À retrouver ce jour : ${artist}`}>
       {tracks ? (
         tracks.length > 0 ? (
-          tracks.map((t, i) => <TrackCard key={t.id} track={t} context={tracks} index={i} />)
+          tracks.map((t, i) => (
+            <TrackCard
+              key={t.id}
+              track={t}
+              context={tracks}
+              index={i}
+              contextName={`Artiste : ${artist}`}
+            />
+          ))
         ) : (
           <p className="muted">Sélection indisponible pour le moment.</p>
         )
@@ -144,6 +231,7 @@ function ArtistSpotlight() {
           <div className="card card-skeleton" key={i}>
             <Skeleton />
             <Skeleton className="line" />
+            <Skeleton className="line short" />
           </div>
         ))
       )}

@@ -2,18 +2,24 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
 import { gradientOf } from '../lib/format';
+import { isPlayable } from '../lib/tracks';
+import TrackRow from '../components/TrackRow';
+import { ArtistCard, Shelf } from '../components/Cards';
 import Icons from '../components/icons';
 
 /**
- * Bibliothèque locale : playlists personnelles (création, lecture,
- * suppression). Tout est persisté dans le navigateur (localStorage).
+ * Bibliothèque locale : titres likés, historique, artistes suivis et playlists.
+ * Tout est persisté dans le navigateur (localStorage).
  */
 export default function Library() {
   const nav = useNavigate();
   const playlists = useStore((s) => s.playlists);
   const liked = useStore((s) => s.liked);
+  const history = useStore((s) => s.history);
+  const followed = useStore((s) => s.followed);
   const createPlaylist = useStore((s) => s.createPlaylist);
   const deletePlaylist = useStore((s) => s.deletePlaylist);
+  const clearHistory = useStore((s) => s.clearHistory);
   const play = useStore((s) => s.play);
   const [name, setName] = useState('');
 
@@ -22,6 +28,8 @@ export default function Library() {
     setName('');
     nav(`/playlist/${id}`);
   }
+
+  const recent = history.slice(0, 6);
 
   return (
     <div className="library">
@@ -58,7 +66,7 @@ export default function Library() {
             <button
               className="btn accent"
               onClick={() => {
-                const playable = liked.filter((t) => t.preview);
+                const playable = liked.filter(isPlayable);
                 if (playable.length > 0) play(playable, 0, 'Titres likés');
               }}
             >
@@ -70,6 +78,43 @@ export default function Library() {
           </div>
         )}
       </section>
+
+      <section className="section">
+        <div className="section-title">
+          <h2>Écoutés récemment</h2>
+          <Link className="link-btn" to="/history">Tout afficher</Link>
+        </div>
+        {recent.length === 0 ? (
+          <p className="muted empty-inline">
+            Lancez un titre : votre historique se remplit automatiquement.
+          </p>
+        ) : (
+          <>
+            <div className="track-list">
+              {recent.map((t, i) => (
+                <TrackRow
+                  key={t.id}
+                  track={t}
+                  context={history}
+                  index={i}
+                  contextName="Écoutés récemment"
+                />
+              ))}
+            </div>
+            <button className="link-btn history-clear" onClick={clearHistory}>
+              Effacer l’historique
+            </button>
+          </>
+        )}
+      </section>
+
+      {followed.length > 0 && (
+        <Shelf title="Artistes suivis">
+          {followed.map((a) => (
+            <ArtistCard key={a.id} artist={a} />
+          ))}
+        </Shelf>
+      )}
 
       <section className="section">
         <div className="section-title"><h2>Playlists</h2></div>
@@ -104,7 +149,7 @@ export default function Library() {
                   className="icon-btn small"
                   title="Lire la playlist"
                   onClick={() => {
-                    const playable = p.tracks.filter((t) => t.preview);
+                    const playable = p.tracks.filter(isPlayable);
                     if (playable.length > 0) play(playable, 0, p.name);
                   }}
                 >
@@ -113,7 +158,9 @@ export default function Library() {
                 <button
                   className="icon-btn small danger"
                   title="Supprimer la playlist"
-                  onClick={() => deletePlaylist(p.id)}
+                  onClick={() => {
+                    if (window.confirm(`Supprimer la playlist « ${p.name} » ?`)) deletePlaylist(p.id);
+                  }}
                 >
                   {Icons.trash(16)}
                 </button>

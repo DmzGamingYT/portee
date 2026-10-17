@@ -2,9 +2,13 @@ import type { Connect, Plugin } from 'vite';
 
 /**
  * Proxy local vers l'API publique iTunes (itunes.apple.com) : métadonnées réelles
- * + extraits officiels de 30 s. Aucune clé, aucun secret. L'API ne renvoie pas
- * d'en-têtes CORS fiables depuis un navigateur : le plugin expose donc les mêmes
- * routes en local, sous /it/api/* (dev et preview).
+ * + extraits officiels de 30 s. Aucune clé, aucun secret.
+ *
+ * Le front appelle `/it/api/search` et `/it/api/lookup`. Le plugin transmet
+ * la query telle quelle à `https://itunes.apple.com` (dev et preview).
+ *
+ * Note : iTunes renvoie `Access-Control-Allow-Origin: *`, le client sait donc
+ * aussi appeler iTunes en direct si ce proxy est absent (hébergement statique).
  *
  * Routes :
  *   /it/api/search?term=…&entity=song|album|musicArtist&limit=25
@@ -13,6 +17,8 @@ import type { Connect, Plugin } from 'vite';
 
 const BASE = 'https://itunes.apple.com';
 const TTL = 10 * 60 * 1000; // 10 min de cache mémoire
+const MAX_ENTRIES = 300; // borne la mémoire du serveur de dev
+const UPSTREAM_TIMEOUT_MS = 10_000;
 
 interface Entry {
   at: number;
@@ -30,6 +36,24 @@ function middleware(): Connect.NextHandleFunction {
       return;
     }
 
+    // Pré-vol CORS (au cas où un client envoie des en-têtes personnalisés).
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Accept, Content-Type');
+      res.setHeader('Access-Control-Max-Age', '86400');
+      res.end();
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.statusCode = 405;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'GET uniquement' }));
+      return;
+    }
+
     // Autorise uniquement search / lookup : pas de proxy ouvert.
     const rest = url.slice('/it/api'.length).replace(/^\/+/, '');
     const [path] = rest.split('?');
@@ -40,7 +64,7 @@ function middleware(): Connect.NextHandleFunction {
       return;
     }
 
-    const key = rest;
+    const key = `GET ${rest}`;
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < TTL) {
       res.statusCode = hit.status;
@@ -52,19 +76,38 @@ function middleware(): Connect.NextHandleFunction {
     }
 
     try {
-      const upstream = await fetch(`${BASE}/${rest}`, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'SpotifyCraft/0.1 (clone open-source; +local)',
-        },
-      });
-      const body = await upstream.text();
-      if (upstream.ok) cache.set(key, { at: Date.now(), status: upstream.status, body });
-      res.statusCode = upstream.status;
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.end(body);
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), UPSTREAM_TIMEOUT_MS);
+      try {
+        const upstream = await fetch(`${BASE}/${rest}`, {
+          signal: ctrl.signal,
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'SpotifyCraft/0.1 (clone open-source; +local)',
+          },
+        });
+        const body = await upstream.text();
+        if (upstream.ok) {
+          if (cache.size >= MAX_ENTRIES) {
+            const oldest = cache.keys().next().value;
+            if (oldest !== undefined) cache.delete(oldest);
+          }
+          cache.set(key, { at: Date.now(), status: upstream.status, body });
+        }
+        res.statusCode = upstream.status;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.end(body);
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        res.statusCode = 504;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'itunes.apple.com : délai dépassé' }));
+        return;
+      }
       res.statusCode = 502;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ error: 'itunes.apple.com injoignable', detail: String(err) }));

@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { artistAlbums, artistTopSongs } from '../api/itunes';
-import type { Album, Track } from '../types';
+import { artistAlbums as itArtistAlbums, artistTopSongs as itArtistTopSongs } from '../api/itunes';
+import {
+  artistAlbums as spArtistAlbums,
+  artistDetails as spArtistDetails,
+  artistTopTracks as spArtistTopTracks,
+} from '../api/spotify';
+import { withItunesPreviews } from '../api/search';
+import { isPlayable } from '../lib/tracks';
+import type { Album, Artist, Track } from '../types';
 import { useStore } from '../store';
 import TrackRow from '../components/TrackRow';
 import { AlbumCard, SectionTitle, Shelf } from '../components/Cards';
 import { gradientOf } from '../lib/format';
 import Icons from '../components/icons';
 
-/** Page artiste : titre Principal, musiques populaires, albums. */
+/** Page artiste : titres populaires + albums (iTunes ou Spotify). */
 export default function ArtistDetail() {
   const { id } = useParams<{ id: string }>();
-  const artistId = Number(id);
-  const [name, setName] = useState<string>('');
-  const [genre, setGenre] = useState<string>('');
+  const isSpotify = id !== undefined && !/^\d+$/.test(id);
+  const [artist, setArtist] = useState<Artist | null>(null);
   const [top, setTop] = useState<Track[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,31 +30,87 @@ export default function ArtistDetail() {
   const toggleFollow = useStore((s) => s.toggleFollow);
 
   useEffect(() => {
-    if (!Number.isFinite(artistId)) return;
+    if (!id) return;
+    const ctrl = new AbortController();
     let dead = false;
     setLoading(true);
     setError(false);
-    Promise.all([artistTopSongs(artistId, 25), artistAlbums(artistId, 18)])
-      .then(([tracks, als]) => {
-        if (dead) return;
+
+    (async () => {
+      if (isSpotify) {
+        const results = await Promise.allSettled([
+          spArtistDetails(id, ctrl.signal),
+          spArtistTopTracks(id, ctrl.signal),
+          spArtistAlbums(id, ctrl.signal),
+        ]);
+        if (dead || ctrl.signal.aborted) return;
+
+        const details = results[0].status === 'fulfilled' ? results[0].value : null;
+        let tracks = results[1].status === 'fulfilled' ? results[1].value : [];
+        const list = results[2].status === 'fulfilled' ? results[2].value : [];
+
+        // Extraits iTunes quand Spotify n'en fournit pas.
+        if (tracks.length > 0 && tracks.some((t) => !t.preview)) {
+          try {
+            tracks = await withItunesPreviews(tracks, details?.name ?? id, ctrl.signal);
+          } catch {
+            if (dead || ctrl.signal.aborted) return;
+          }
+        }
+        if (dead || ctrl.signal.aborted) return;
+
+        setArtist(details);
         setTop(tracks);
-        setAlbums(als);
-        const n = tracks[0]?.artist ?? '';
-        setName(n);
-        setGenre(tracks[0]?.genre ?? '');
-      })
-      .catch(() => !dead && setError(true))
-      .finally(() => !dead && setLoading(false));
+        setAlbums(list);
+        setError(!details && tracks.length === 0 && list.length === 0);
+      } else {
+        const artistId = Number(id);
+        if (!Number.isFinite(artistId) || artistId <= 0) {
+          setLoading(false);
+          return;
+        }
+        const results = await Promise.allSettled([
+          itArtistTopSongs(artistId, 25, ctrl.signal),
+          itArtistAlbums(artistId, 18, ctrl.signal),
+        ]);
+        if (dead || ctrl.signal.aborted) return;
+
+        const tracks = results[0].status === 'fulfilled' ? results[0].value : [];
+        const list = results[1].status === 'fulfilled' ? results[1].value : [];
+        setTop(tracks);
+        setAlbums(list);
+        // Le nom d'artiste d'un album est plus fiable que celui d'un titre
+        // (un titre peut lister « Daft Punk, Pharrell Williams… »).
+        setArtist({
+          id: String(artistId),
+          name: list[0]?.artist || tracks[0]?.artist || '',
+          genre: list[0]?.genre || tracks[0]?.genre || undefined,
+        });
+        setError(tracks.length === 0 && list.length === 0);
+      }
+    })().catch(() => {
+      if (!dead && !ctrl.signal.aborted) setError(true);
+    }).finally(() => {
+      if (!dead && !ctrl.signal.aborted) setLoading(false);
+    });
+
     return () => {
       dead = true;
+      ctrl.abort();
     };
-  }, [artistId]);
+  }, [id, isSpotify]);
 
-  if (!Number.isFinite(artistId)) {
+  if (!id) return <div className="empty-note">Artiste inconnu.</div>;
+  if (!isSpotify && (!Number.isFinite(Number(id)) || Number(id) <= 0)) {
     return <div className="empty-note">Artiste inconnu.</div>;
   }
   if (error) {
-    return <div className="empty-note">Impossible de charger cet artiste — réessayez plus tard.</div>;
+    return (
+      <div className="empty-note">
+        Impossible de charger cet artiste — vérifiez votre connexion puis{' '}
+        <Link className="text-link" to="/search">réessayez via la recherche</Link>.
+      </div>
+    );
   }
   if (loading) {
     return (
@@ -63,22 +125,39 @@ export default function ArtistDetail() {
     );
   }
 
-  const isFollowed = followed.includes(String(artistId));
+  const name = artist?.name || top[0]?.artist || 'Métadonnées indisponibles';
+  const genre = artist?.genre;
+  const seed = id;
+  const isFollowed = followed.some((a) => a.id === String(id));
+  const cover = artist?.cover;
+
+  // Objet complet conservé dans la bibliothèque (nom, photo, lien).
+  const followTarget: Artist = artist ?? {
+    id: String(id),
+    name,
+    cover,
+    spotifyId: isSpotify ? String(id) : undefined,
+  };
 
   return (
     <div className="artist-page">
-      <div className="detail-head banner" style={{ background: gradientOf(String(artistId)) }}>
+      <div className="detail-head banner" style={{ background: gradientOf(seed) }}>
+        {cover && <img className="artist-photo" src={cover} alt="" />}
         <div className="banner-inner">
           <span className="detail-kind">Artiste</span>
-          <h1 className="detail-title big">{name || 'Métadonnées indisponibles'}</h1>
+          <h1 className="detail-title big">{name}</h1>
           {genre && <div className="detail-meta muted">{genre}</div>}
           <div className="detail-actions">
-            <button className="btn accent" disabled={top.length === 0} onClick={() => play(top, 0, name)}>
+            <button
+              className="btn accent"
+              disabled={top.filter(isPlayable).length === 0}
+              onClick={() => play(top, 0, name)}
+            >
               {Icons.play(18)} Lecture
             </button>
             <button
               className={`btn ghost ${isFollowed ? 'following' : ''}`}
-              onClick={() => toggleFollow(String(artistId))}
+              onClick={() => toggleFollow(followTarget)}
             >
               {isFollowed ? 'Abonné ✓' : "S'abonner"}
             </button>
@@ -91,7 +170,7 @@ export default function ArtistDetail() {
           <SectionTitle>Musiques populaires</SectionTitle>
           <div className="track-list">
             {top.map((t, i) => (
-              <TrackRow key={t.id} track={t} context={top} index={i} />
+              <TrackRow key={t.id} track={t} context={top} index={i} contextName={name} />
             ))}
           </div>
         </section>
@@ -109,7 +188,7 @@ export default function ArtistDetail() {
         <div className="empty-note">Aucune donnée trouvée pour cet artiste.</div>
       )}
 
-      {top[0]?.artistId && (
+      {name && (
         <p className="muted more-hint">
           <Link to={`/search?q=${encodeURIComponent(name)}`}>Tout afficher</Link>
         </p>

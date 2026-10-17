@@ -6,6 +6,10 @@ import Library from './pages/Library';
 import PlaylistDetail from './pages/PlaylistDetail';
 import AlbumDetail from './pages/AlbumDetail';
 import ArtistDetail from './pages/ArtistDetail';
+import History from './pages/History';
+import LocalLibrary from './pages/LocalLibrary';
+import DailyMixPage from './pages/DailyMixPage';
+import Callback from './pages/Callback';
 
 export default function App() {
   return (
@@ -17,6 +21,10 @@ export default function App() {
         <Route path="/playlist/:id" element={<PlaylistDetail />} />
         <Route path="/album/:id" element={<AlbumDetail />} />
         <Route path="/artist/:id" element={<ArtistDetail />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/local" element={<LocalLibrary />} />
+        <Route path="/daily" element={<DailyMixPage />} />
+        <Route path="/callback" element={<Callback />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
