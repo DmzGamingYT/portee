@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import { useStore } from '../store';
+import { useAutoTheme } from '../lib/useAutoTheme';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import PlayerBar from './player/PlayerBar';
@@ -10,12 +9,9 @@ import { useKeyboardShortcuts } from '../lib/useKeyboardShortcuts';
 
 /** Gabarit global : sidebar + (barre du haut / contenu) + barre de lecture + moteur audio. */
 export default function Layout() {
-  const theme = useStore((s) => s.theme);
+  // Thème automatique jour/nuit : aucune bascule, tout suit le système.
+  useAutoTheme();
   useKeyboardShortcuts();
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
 
   return (
     <div className="app">

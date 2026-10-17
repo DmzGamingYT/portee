@@ -1,5 +1,12 @@
 import type { Track } from '../types';
 import { parseId3v1, parseId3v2, tagsFromFileName, type AudioTags } from './id3';
+import { albumKey, albumLabel, createDuplicateIndex, fileFingerprint } from './importPlan';
+import {
+  extractEmbeddedPicture,
+  isGeneratedCover,
+  pictureToCoverDataUrl,
+} from './coverArt';
+import { loadAudioCore, tagsFromCore } from './audioCore';
 
 /**
  * Bibliothèque audio locale — 100 % navigateur.
@@ -18,7 +25,10 @@ const DB_NAME = 'spotifycraft-local';
 const DB_VERSION = 1;
 const META_STORE = 'tracks';
 const BLOB_STORE = 'blobs';
-const MAX_TAG_BYTES = 2 * 1024 * 1024;
+/** Plafond du tag ID3 lu pour les métadonnées (les pochettes ont le leur). */
+const MAX_ID3_TAG_BYTES = 8 * 1024 * 1024;
+/** Les commentaires Vorbis d'un FLAC tiennent largement dans 64 Ko. */
+const FLAC_SCAN_BYTES = 64 * 1024;
 
 const AUDIO_EXTENSION = /\.(mp3|m4a|m4b|aac|wav|wave|ogg|oga|opus|flac|webm|aiff|aif)$/i;
 
@@ -60,10 +70,33 @@ export interface LocalTrack extends Track {
   addedAt: number;
 }
 
+export interface ImportEntry {
+  file: File;
+  /** chemin relatif au dossier importé, ex. « Artiste/Album/01.mp3 » */
+  path?: string;
+}
+
+/** Fichier simple ou fichier accompagné de son chemin relatif. */
+export type ImportInput = File | ImportEntry;
+
+export interface AlbumProgress {
+  name: string;
+  /** album courant (1-based) et nombre total d'albums */
+  index: number;
+  total: number;
+  /** titres déjà traités dans cet album */
+  done: number;
+  /** titres de cet album */
+  tracks: number;
+}
+
 export interface ImportProgress {
+  /** `scan` : lecture des tags ; `import` : écriture album par album. */
+  phase: 'scan' | 'import';
   done: number;
   total: number;
   current?: string;
+  album?: AlbumProgress;
 }
 
 export interface ImportFailure {
@@ -71,9 +104,25 @@ export interface ImportFailure {
   reason: string;
 }
 
+export interface ImportDuplicate {
+  name: string;
+  reason: string;
+}
+
+export interface AlbumImportSummary {
+  name: string;
+  imported: number;
+  duplicates: number;
+  failed: number;
+}
+
 export interface ImportResult {
   tracks: LocalTrack[];
   failures: ImportFailure[];
+  duplicates: ImportDuplicate[];
+  /** fichiers non audio écartés sans erreur (pochettes, fichiers système…) */
+  ignored: number;
+  albums: AlbumImportSummary[];
 }
 
 interface BlobRecord {
@@ -215,15 +264,51 @@ function toLocalTrack(meta: LocalTrackMeta): LocalTrack {
   };
 }
 
+function id3TagSize(header: Uint8Array): number {
+  return (
+    (((header[6] ?? 0) & 0x7f) << 21) |
+    (((header[7] ?? 0) & 0x7f) << 14) |
+    (((header[8] ?? 0) & 0x7f) << 7) |
+    ((header[9] ?? 0) & 0x7f)
+  );
+}
+
+/**
+ * Tags d'un fichier, sans lire plus que nécessaire : l'en-tête ID3 donne la
+ * taille exacte du tag, un FLAC se contente de ses premiers 64 Ko, et les
+ * autres formats des 128 derniers octets (ID3v1). Le décodage est confié au
+ * noyau Rust/WASM quand il est disponible, sinon aux parseurs JavaScript.
+ */
 async function readAudioTags(file: File): Promise<AudioTags> {
   try {
-    const head = new Uint8Array(
-      await file.slice(0, Math.min(file.size, MAX_TAG_BYTES)).arrayBuffer()
+    const core = await loadAudioCore();
+    const header = new Uint8Array(
+      await file.slice(0, Math.min(file.size, 10)).arrayBuffer()
     );
-    const v2 = parseId3v2(head);
-    if (v2) return v2;
+
+    // ID3v2 : « ID3 » + taille du tag (7 bits par octet).
+    if (header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) {
+      const size = id3TagSize(header);
+      if (size <= 0 || size > MAX_ID3_TAG_BYTES) return {};
+      const tag = new Uint8Array(
+        await file.slice(0, Math.min(file.size, 10 + size)).arrayBuffer()
+      );
+      if (core) return tagsFromCore(core.parseTags(tag));
+      return parseId3v2(tag) ?? {};
+    }
+
+    // FLAC : commentaires Vorbis (le noyau Rust est seul à les lire).
+    if (header[0] === 0x66 && header[1] === 0x4c && header[2] === 0x61 && header[3] === 0x43) {
+      if (!core) return {};
+      const head = new Uint8Array(
+        await file.slice(0, Math.min(file.size, FLAC_SCAN_BYTES)).arrayBuffer()
+      );
+      return tagsFromCore(core.parseTags(head));
+    }
+
     if (file.size > 128) {
       const tail = new Uint8Array(await file.slice(file.size - 128).arrayBuffer());
+      if (core) return tagsFromCore(core.parseTags(tail));
       return parseId3v1(tail) ?? {};
     }
   } catch {
@@ -268,15 +353,26 @@ async function readAudioDuration(blob: Blob): Promise<number | null> {
   });
 }
 
+/** Pochette intégrée (APIC / FLAC PICTURE) réduite en vignette, ou null. */
+async function coverFromBlob(blob: Blob): Promise<string | null> {
+  const picture = await extractEmbeddedPicture(blob);
+  return picture ? pictureToCoverDataUrl(picture) : null;
+}
+
 /* ----------------------------- API publique ------------------------------- */
+
+/** Métadonnées brutes (aucun blob chargé). */
+async function readMetas(): Promise<LocalTrackMeta[]> {
+  const db = await openDb();
+  const transaction = db.transaction(META_STORE, 'readonly');
+  return requestResult(
+    transaction.objectStore(META_STORE).getAll() as IDBRequest<LocalTrackMeta[]>
+  );
+}
 
 /** Liste de la bibliothèque (métadonnées uniquement). */
 export async function listLocalTracks(): Promise<LocalTrack[]> {
-  const db = await openDb();
-  const transaction = db.transaction(META_STORE, 'readonly');
-  const metas = await requestResult(
-    transaction.objectStore(META_STORE).getAll() as IDBRequest<LocalTrackMeta[]>
-  );
+  const metas = await readMetas();
   return metas.map(toLocalTrack).sort((a, b) => b.addedAt - a.addedAt);
 }
 
@@ -343,18 +439,55 @@ export async function clearLocalTracks(): Promise<void> {
   notifyLocalChanged();
 }
 
+function toEntry(input: ImportInput): ImportEntry {
+  if ('file' in input) return input;
+  return { file: input, path: input.webkitRelativePath || undefined };
+}
+
+/** Chemin servant au tri et au regroupement (dossier relatif quand on en a un). */
+function entryPath(entry: ImportEntry): string {
+  return entry.path || entry.file.webkitRelativePath || entry.file.name;
+}
+
+interface ScannedEntry {
+  entry: ImportEntry;
+  tags: AudioTags;
+}
+
 /**
- * Importe des fichiers : tags (MP3), durée réelle, métadonnées, puis stockage
- * du blob. Les erreurs sont renvoyées fichier par fichier.
+ * Importe des fichiers ou un dossier entier dans IndexedDB.
+ *
+ * 1. `scan` : lecture des tags de chaque fichier pour connaître son album ;
+ *    les doublons évidents (même nom + même taille) sont écartés.
+ * 2. `import` : écriture **album par album**, avec une progression détaillée
+ *    (album courant, titres traités dans l'album, total).
+ *
+ * Sont ignorés : un fichier déjà importé, une copie présente deux fois dans la
+ * sélection, et un même titre (artiste + album + durée proche) déjà stocké,
+ * même sous un autre nom de fichier. Les fichiers non audio sont écartés
+ * silencieusement (pochettes, fichiers système d'un dossier).
  */
 export async function importAudioFiles(
-  files: File[],
+  inputs: ImportInput[],
   onProgress?: (progress: ImportProgress) => void
 ): Promise<ImportResult> {
-  const list = files.filter((file) => file.size > 0);
-  const result: ImportResult = { tracks: [], failures: [] };
-  const total = list.length;
-  if (total === 0) return result;
+  const entries = inputs.map(toEntry).filter((entry) => entry.file.size > 0);
+  const result: ImportResult = {
+    tracks: [],
+    failures: [],
+    duplicates: [],
+    ignored: 0,
+    albums: [],
+  };
+
+  const audio = entries.filter((entry) => isAudioFile(entry.file));
+  result.ignored = entries.length - audio.length;
+  if (audio.length === 0) return result;
+
+  // Ordre naturel des pistes (« 02 » avant « 10 ») pour un import album par album.
+  audio.sort((a, b) =>
+    entryPath(a).localeCompare(entryPath(b), 'fr', { numeric: true, sensitivity: 'base' })
+  );
 
   // Demande une persistance durable (best-effort, sans dialogue bloquant).
   try {
@@ -363,23 +496,81 @@ export async function importAudioFiles(
     // non supporté ou refusé : le stockage reste « best-effort »
   }
 
-  let done = 0;
-  const startedAt = Date.now();
+  const index = createDuplicateIndex(await readMetas());
+  const batch = new Set<string>();
+  const scanned: ScannedEntry[] = [];
 
-  for (let index = 0; index < list.length; index++) {
-    const file = list[index];
-    onProgress?.({ done, total, current: file.name });
+  /* --- phase 1 : tags + doublons de fichiers ----------------------------- */
+  for (let position = 0; position < audio.length; position++) {
+    const entry = audio[position];
+    const name = entry.file.name;
+    onProgress?.({ phase: 'scan', done: position, total: audio.length, current: name });
 
-    if (!isAudioFile(file)) {
-      result.failures.push({ name: file.name, reason: 'Format non reconnu (fichier audio attendu).' });
-      done += 1;
-      onProgress?.({ done, total, current: file.name });
+    if (index.hasFile(name, entry.file.size)) {
+      result.duplicates.push({ name, reason: 'Fichier déjà importé' });
       continue;
     }
 
-    try {
-      const tags = await readAudioTags(file);
+    const fingerprint = fileFingerprint(name, entry.file.size);
+    if (batch.has(fingerprint)) {
+      result.duplicates.push({ name, reason: 'Copie dans la sélection' });
+      continue;
+    }
+    batch.add(fingerprint);
+
+    scanned.push({ entry, tags: await readAudioTags(entry.file) });
+  }
+  onProgress?.({ phase: 'scan', done: audio.length, total: audio.length });
+
+  /* --- regroupement par album ------------------------------------------- */
+  const groups = new Map<string, { key: string; name: string; items: ScannedEntry[] }>();
+  for (const item of scanned) {
+    const key = albumKey(item.entry.path, item.tags.album);
+    const group = groups.get(key);
+    if (group) {
+      group.items.push(item);
+    } else {
+      groups.set(key, {
+        key,
+        name: albumLabel(item.entry.path, item.tags.album),
+        items: [item],
+      });
+    }
+  }
+  const albums = [...groups.values()];
+
+  /* --- phase 2 : écriture album par album -------------------------------- */
+  const total = scanned.length;
+  const startedAt = Date.now();
+  const albumCovers = new Map<string, string>();
+  let done = 0;
+  let aborted = false;
+
+  for (let albumIndex = 0; albumIndex < albums.length && !aborted; albumIndex++) {
+    const group = albums[albumIndex];
+    const summary: AlbumImportSummary = {
+      name: group.name,
+      imported: 0,
+      duplicates: 0,
+      failed: 0,
+    };
+    const album: AlbumProgress = {
+      name: group.name,
+      index: albumIndex + 1,
+      total: albums.length,
+      done: 0,
+      tracks: group.items.length,
+    };
+
+    for (const { entry, tags } of group.items) {
+      const file = entry.file;
+      onProgress?.({ phase: 'import', done, total, current: file.name, album: { ...album } });
+
       const fallback = tagsFromFileName(file.name);
+      const title = clean(tags.title || fallback.title) || 'Titre sans nom';
+      const artist = clean(tags.artist || fallback.artist || '') || 'Artiste inconnu';
+      const albumName =
+        clean(tags.album || fallback.album || '') || albumLabel(entry.path, undefined);
       const durationMs = await readAudioDuration(file);
 
       if (!durationMs) {
@@ -387,50 +578,122 @@ export async function importAudioFiles(
           name: file.name,
           reason: 'Impossible de lire ce format audio dans ce navigateur.',
         });
-        done += 1;
-        onProgress?.({ done, total, current: file.name });
-        continue;
+        summary.failed += 1;
+      } else {
+        const duration = Math.max(1000, durationMs);
+        if (index.hasTrack(title, artist, albumName, duration)) {
+          result.duplicates.push({ name: file.name, reason: 'Même titre déjà présent' });
+          summary.duplicates += 1;
+        } else {
+          // Une seule extraction par album : les pistes partagent la pochette.
+          let cover = albumCovers.get(group.key);
+          if (!cover) {
+            cover = (await coverFromBlob(file)) ?? undefined;
+            if (cover) albumCovers.set(group.key, cover);
+          }
+
+          const id = newId();
+          const meta: LocalTrackMeta = {
+            id,
+            title,
+            artist,
+            album: albumName,
+            cover: cover ?? coverDataUrl(id, title),
+            durationMs: duration,
+            genre: tags.genre ? clean(tags.genre, 60) : undefined,
+            fileName: file.name,
+            mime: mimeOf(file),
+            size: file.size,
+            // Conserve l'ordre d'import même pour des fichiers traités dans la même ms.
+            addedAt: startedAt + done,
+          };
+
+          try {
+            await putLocalRecord(meta, file);
+            index.rememberTrack(title, artist, albumName, duration);
+            result.tracks.push(toLocalTrack(meta));
+            summary.imported += 1;
+          } catch (err) {
+            const quota =
+              err instanceof DOMException &&
+              (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+            result.failures.push({
+              name: file.name,
+              reason: quota
+                ? 'Espace de stockage du navigateur insuffisant.'
+                : 'Échec de l’enregistrement du fichier.',
+            });
+            summary.failed += 1;
+            if (quota) aborted = true;
+          }
+        }
       }
 
-      const title = clean(tags.title || fallback.title) || 'Titre sans nom';
-      const artist = clean(tags.artist || fallback.artist || '') || 'Artiste inconnu';
-      const album = clean(tags.album || fallback.album || '') || 'Ma musique locale';
-      const id = newId();
-
-      const meta: LocalTrackMeta = {
-        id,
-        title,
-        artist,
-        album,
-        cover: coverDataUrl(id, title),
-        durationMs: Math.max(1000, durationMs),
-        genre: tags.genre ? clean(tags.genre, 60) : undefined,
-        fileName: file.name,
-        mime: mimeOf(file),
-        size: file.size,
-        // Conserve l'ordre d'import même si les fichiers sont traités dans la même ms.
-        addedAt: startedAt + index,
-      };
-
-      await putLocalRecord(meta, file);
-      result.tracks.push(toLocalTrack(meta));
-    } catch (err) {
-      const quota =
-        err instanceof DOMException &&
-        (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED');
-      result.failures.push({
-        name: file.name,
-        reason: quota
-          ? 'Espace de stockage du navigateur insuffisant.'
-          : 'Échec de l’enregistrement du fichier.',
-      });
-      if (quota) break;
+      done += 1;
+      album.done += 1;
+      onProgress?.({ phase: 'import', done, total, current: file.name, album: { ...album } });
+      if (aborted) break;
     }
 
-    done += 1;
-    onProgress?.({ done, total, current: file.name });
+    result.albums.push(summary);
   }
 
   if (result.tracks.length > 0) notifyLocalChanged();
   return result;
+}
+
+export interface CoverRefreshProgress {
+  done: number;
+  total: number;
+}
+
+export interface CoverRefreshResult {
+  /** fichiers dont la pochette est encore générée */
+  total: number;
+  /** fichiers dont la pochette a été remplacée par l'image intégrée */
+  updated: number;
+}
+
+/**
+ * Remplace les visuels générés des fichiers déjà importés par la pochette
+ * intégrée (MP3 APIC / FLAC PICTURE). Les fichiers sans image sont laissés
+ * tels quels ; une pochette trouvée pour un album est réutilisée par ses
+ * autres pistes sans relire leur contenu.
+ */
+export async function refreshLocalCovers(
+  onProgress?: (progress: CoverRefreshProgress) => void
+): Promise<CoverRefreshResult> {
+  const metas = await readMetas();
+  const targets = metas.filter((meta) => isGeneratedCover(meta.cover));
+  if (targets.length === 0) return { total: 0, updated: 0 };
+
+  const db = await openDb();
+  const covers = new Map<string, string>();
+  let updated = 0;
+
+  for (let index = 0; index < targets.length; index++) {
+    const meta = targets[index];
+    onProgress?.({ done: index, total: targets.length });
+
+    const key = `${meta.artist.toLowerCase()}|${meta.album.toLowerCase()}`;
+    let cover = covers.get(key);
+
+    if (!cover) {
+      const blob = await getLocalBlob(meta.id);
+      if (!blob) continue;
+      const found = await coverFromBlob(blob);
+      if (!found) continue;
+      cover = found;
+      covers.set(key, cover);
+    }
+
+    const transaction = db.transaction(META_STORE, 'readwrite');
+    transaction.objectStore(META_STORE).put({ ...meta, cover });
+    await transactionDone(transaction);
+    updated += 1;
+  }
+
+  onProgress?.({ done: targets.length, total: targets.length });
+  if (updated > 0) notifyLocalChanged();
+  return { total: targets.length, updated };
 }

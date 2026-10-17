@@ -1,0 +1,17 @@
+{
+  "name": "spotifycraft-import-core",
+  "type": "module",
+  "description": "Lecture des tags audio et des pochettes intégrées pour SpotifyCraft (WASM)",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "spotifycraft_import_core_bg.wasm",
+    "spotifycraft_import_core.js",
+    "spotifycraft_import_core.d.ts"
+  ],
+  "main": "spotifycraft_import_core.js",
+  "types": "spotifycraft_import_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

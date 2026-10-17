@@ -7,30 +7,39 @@ import { PlayFAB, Shelf, Skeleton } from './Cards';
 import Icons from './icons';
 
 /**
- * Pochette d'un Daily Mix : dégradé stable dérivé de la graine, icône et
- * collage des premières pochettes disponibles.
+ * Pochette d'un Daily Mix : mosaïque des pochettes de ses titres (1 à 4),
+ * avec un petit badge Daily Mix. Sans artwork disponible, repli sur le dégradé
+ * stable dérivé de la graine et l'icône générative.
  */
 export function DailyMixCover({ mix }: { mix: DailyMix }) {
   // Pochettes distinctes (plusieurs titres d'un même album partagent la même
-  // URL) : sinon React reçoit deux fois la même clé et le collage se répète.
+  // URL) : sinon React reçoit deux fois la même clé et la mosaïque se répète.
   const covers: Array<{ id: string; cover: string }> = [];
   const seenCovers = new Set<string>();
   for (const track of mix.tracks) {
     if (!track.cover || seenCovers.has(track.cover)) continue;
     seenCovers.add(track.cover);
     covers.push({ id: track.id, cover: track.cover });
-    if (covers.length === 3) break;
+    if (covers.length === 4) break;
   }
 
   return (
-    <div className="mix-cover" style={{ background: gradientOf(mix.coverSeed) }} aria-hidden>
-      <span className="mix-cover-icon">{Icons.spark(34)}</span>
-      {covers.length > 0 && (
-        <span className="mix-cover-marks">
-          {covers.map(({ id, cover }) => (
-            <img key={id} src={cover} alt="" loading="lazy" />
-          ))}
-        </span>
+    <div
+      className={`mix-cover${covers.length > 0 ? ' has-art' : ''}`}
+      style={covers.length > 0 ? undefined : { background: gradientOf(mix.coverSeed) }}
+      aria-hidden
+    >
+      {covers.length > 0 ? (
+        <>
+          <span className={`mix-cover-grid size-${covers.length}`}>
+            {covers.map(({ id, cover }) => (
+              <img key={id} src={cover} alt="" loading="lazy" />
+            ))}
+          </span>
+          <span className="mix-cover-badge">{Icons.spark(13)}</span>
+        </>
+      ) : (
+        <span className="mix-cover-icon">{Icons.spark(34)}</span>
       )}
     </div>
   );

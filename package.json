@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "wasm:build": "wasm-pack build crates/import-core --release --target web --out-dir ../../src/wasm/import-core"
   },
   "dependencies": {
     "react": "^18.3.1",

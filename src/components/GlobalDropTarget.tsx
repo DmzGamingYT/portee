@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { importAudioFiles, type ImportProgress } from '../lib/localLibrary';
+import { collectDroppedFiles } from '../lib/importFolder';
 import Icons from './icons';
 
 interface ToastMessage {
@@ -23,6 +24,19 @@ export default function GlobalDropTarget() {
   const depth = useRef(0);
   const busy = useRef(false);
   const toastTimer = useRef<number | null>(null);
+  const progressClock = useRef({ at: 0, phase: '', album: -1 });
+
+  /** Limite les rendus à ~5/s pendant un gros import (phase/album toujours affichés). */
+  function paintProgress(next: ImportProgress) {
+    const clock = progressClock.current;
+    const now = performance.now();
+    const album = next.album?.index ?? -1;
+    if (next.phase === clock.phase && album === clock.album && now - clock.at < 200) return;
+    clock.at = now;
+    clock.phase = next.phase;
+    clock.album = album;
+    setProgress({ ...next });
+  }
 
   useEffect(() => {
     const hasFiles = (event: DragEvent) =>
@@ -65,29 +79,51 @@ export default function GlobalDropTarget() {
       resetDrag();
       if (busy.current) return;
 
-      const files = Array.from(event.dataTransfer?.files ?? []).filter((file) => file.size > 0);
-      if (files.length === 0) return;
+      const transfer = event.dataTransfer;
+      if (!transfer) return;
 
       busy.current = true;
       setMessage(null);
-      setProgress({ done: 0, total: files.length });
+      progressClock.current = { at: 0, phase: '', album: -1 };
+      setProgress({ phase: 'scan', done: 0, total: 0 });
 
       void (async () => {
         try {
-          const result = await importAudioFiles(files, (next) => setProgress({ ...next }));
+          // Un dossier déposé est exploré récursivement ; les fichiers simples
+          // passent par le même chemin et gardent leur chemin relatif.
+          const entries = await collectDroppedFiles(transfer, (count) =>
+            paintProgress({ phase: 'scan', done: count, total: 0 })
+          );
+          if (entries.length === 0) {
+            setMessage({ kind: 'error', text: 'Aucun fichier audio détecté.' });
+            return;
+          }
+
+          const result = await importAudioFiles(entries, paintProgress);
           const imported = result.tracks.length;
           const failed = result.failures.length;
+          const duplicates = result.duplicates.length;
+
+          const importedText = `${imported} titre${imported > 1 ? 's' : ''} importé${
+            imported > 1 ? 's' : ''
+          }`;
+          const duplicatesText = `${duplicates} doublon${duplicates > 1 ? 's' : ''} ignoré${
+            duplicates > 1 ? 's' : ''
+          }`;
+          const failedText = `${failed} fichier${failed > 1 ? 's' : ''} en erreur`;
 
           setMessage({
-            kind: imported > 0 ? 'success' : 'error',
+            kind: imported > 0 ? 'success' : duplicates > 0 ? 'success' : 'error',
             text:
               imported > 0
-                ? `${imported} titre${imported > 1 ? 's' : ''} importé${imported > 1 ? 's' : ''}${
-                    failed > 0 ? ` · ${failed} fichier${failed > 1 ? 's' : ''} ignoré${failed > 1 ? 's' : ''}` : ''
-                  }`
-                : failed > 0
-                  ? `Aucun fichier importé · ${result.failures[0]?.reason ?? 'format non reconnu'}`
-                  : 'Aucun fichier audio détecté.',
+                ? [importedText, duplicates > 0 ? duplicatesText : '', failed > 0 ? failedText : '']
+                    .filter(Boolean)
+                    .join(' · ')
+                : duplicates > 0
+                  ? `Aucun nouveau titre · ${duplicatesText}`
+                  : failed > 0
+                    ? `Aucun fichier importé · ${result.failures[0]?.reason ?? 'format non reconnu'}`
+                    : 'Aucun fichier audio détecté.',
           });
 
           if (imported > 0) navigate('/local');
@@ -128,9 +164,9 @@ export default function GlobalDropTarget() {
         <div className="drop-overlay" aria-hidden>
           <div className="drop-overlay-card">
             {Icons.upload(42)}
-            <strong>Déposez vos fichiers audio</strong>
+            <strong>Déposez un dossier ou des fichiers audio</strong>
             <span>MP3 · M4A · FLAC · WAV · OGG · OPUS</span>
-            <small>Les fichiers restent sur cet appareil.</small>
+            <small>Import album par album, doublons ignorés · fichiers conservés sur cet appareil.</small>
           </div>
         </div>
       )}
@@ -139,8 +175,18 @@ export default function GlobalDropTarget() {
         <div className="import-toast" role="status" aria-live="polite">
           <span className="spinner" aria-hidden />
           <span className="import-toast-text">
-            Import {progress.done}/{progress.total}…
-            {progress.current && <small title={progress.current}>{progress.current}</small>}
+            {progress.phase === 'scan'
+              ? progress.total > 0
+                ? `Analyse ${progress.done}/${progress.total}…`
+                : `Analyse du dossier… ${progress.done} fichier${progress.done > 1 ? 's' : ''}`
+              : progress.album
+                ? `Album ${progress.album.index}/${progress.album.total} · ${progress.album.name}`
+                : `Import ${progress.done}/${progress.total}…`}
+            <small title={progress.current}>
+              {progress.phase === 'import' && progress.album
+                ? `${progress.album.done}/${progress.album.tracks} de cet album · ${progress.done}/${progress.total} au total`
+                : progress.current}
+            </small>
           </span>
         </div>
       )}

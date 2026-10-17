@@ -9,3 +9,6 @@ dist
 .env.local
 .env.*.local
 coverage
+
+# Cible de compilation Rust (le paquet WASM versionné est dans src/wasm)
+crates/import-core/target

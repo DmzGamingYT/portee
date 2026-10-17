@@ -176,6 +176,105 @@ export function parseId3v2(input: ArrayBuffer | Uint8Array): AudioTags | null {
   return Object.keys(tags).length > 0 ? tags : null;
 }
 
+/** Pochette intégrée à un fichier audio (octets bruts + type MIME). */
+export interface EmbeddedPicture {
+  mime: string;
+  data: Uint8Array;
+}
+
+export interface ApicPicture extends EmbeddedPicture {
+  /** type ID3 de l'image (3 = pochette recto) */
+  type: number;
+}
+
+export function normalizeImageMime(value: string): string {
+  const mime = value.trim().toLowerCase();
+  if (!mime.startsWith('image/')) return 'image/jpeg';
+  return mime === 'image/jpg' ? 'image/jpeg' : mime;
+}
+
+/**
+ * Parse une frame APIC (ID3v2.3/v2.4) : encodage, MIME, type, description,
+ * puis les octets de l'image.
+ */
+export function parseApicFrame(frame: Uint8Array): ApicPicture | null {
+  if (frame.length < 4) return null;
+
+  const encoding = frame[0] ?? 0;
+  let pos = 1;
+
+  let mime = '';
+  while (pos < frame.length && frame[pos] !== 0) {
+    mime += String.fromCharCode(frame[pos] ?? 0);
+    pos += 1;
+  }
+  if (pos >= frame.length) return null;
+  pos += 1; // zéro terminal du MIME
+
+  const type = frame[pos] ?? 0;
+  pos += 1;
+
+  // Description : terminée par un zéro (deux octets pour l'UTF-16).
+  if (encoding === 1 || encoding === 2) {
+    while (pos + 1 < frame.length && !(frame[pos] === 0 && frame[pos + 1] === 0)) pos += 2;
+    pos += 2;
+  } else {
+    while (pos < frame.length && frame[pos] !== 0) pos += 1;
+    pos += 1;
+  }
+  if (pos >= frame.length) return null;
+
+  const data = frame.subarray(pos);
+  if (data.length === 0) return null;
+  return { mime: normalizeImageMime(mime), data, type };
+}
+
+/**
+ * Extrait la pochette d'un tag ID3v2.3/v2.4 (frame APIC).
+ * La pochette recto (type 3) est privilégiée ; sinon la première trouvée.
+ * Le buffer fourni doit couvrir tout le tag (pas seulement ses premiers octets).
+ */
+export function parseId3v2Picture(input: ArrayBuffer | Uint8Array): EmbeddedPicture | null {
+  const data = toBytes(input);
+  if (data.length < 10 || ascii(data, 0, 3) !== 'ID3') return null;
+
+  const version = data[3];
+  if (version !== 3 && version !== 4) return null;
+
+  const flags = data[5] ?? 0;
+  if (flags & 0x80) return null; // tag unsynchronisé : positions non fiables
+
+  let offset = 10;
+  if (flags & 0x40) {
+    const extended = version === 4 ? syncsafe(data, offset) : uint32(data, offset);
+    if (extended < 6) return null;
+    offset += extended;
+  }
+
+  const end = Math.min(data.length, 10 + syncsafe(data, 6));
+  let fallback: ApicPicture | null = null;
+
+  while (offset + 10 <= end) {
+    const id = ascii(data, offset, 4);
+    if (!/^[A-Z0-9]{4}$/.test(id)) break;
+
+    const size = version === 4 ? syncsafe(data, offset + 4) : uint32(data, offset + 4);
+    if (size <= 0 || offset + 10 + size > end) break;
+
+    if (id === 'APIC') {
+      const picture = parseApicFrame(data.subarray(offset + 10, offset + 10 + size));
+      if (picture) {
+        if (picture.type === 3) return picture;
+        fallback ??= picture;
+      }
+    }
+
+    offset += 10 + size;
+  }
+
+  return fallback;
+}
+
 /** Parse le bloc ID3v1 de 128 octets en fin de fichier. */
 export function parseId3v1(input: ArrayBuffer | Uint8Array): AudioTags | null {
   const data = toBytes(input);

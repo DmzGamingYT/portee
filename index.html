@@ -6,6 +6,21 @@
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#121212" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      // Thème automatique jour/nuit, sans bascule ni icône : appliqué avant la
+      // peinture pour éviter tout flash, puis repris par `useAutoTheme`.
+      (function () {
+        var media = window.matchMedia('(prefers-color-scheme: light)');
+        var apply = function () {
+          var theme = media.matches ? 'light' : 'dark';
+          document.documentElement.dataset.theme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'light' ? '#f6f6f6' : '#121212');
+        };
+        apply();
+        media.addEventListener('change', apply);
+      })();
+    </script>
     <meta
       name="description"
       content="SpotifyCraft — clone open-source de Spotify : recherche, albums, playlists, file d'attente, extraits officiels de 30 s et bibliothèque audio locale, sans clé API."

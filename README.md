@@ -16,7 +16,8 @@ métadonnées viennent de Spotify et les extraits manquants d'iTunes.
 Une **bibliothèque audio locale** complète le catalogue de découverte : glissez
 des fichiers MP3, M4A, FLAC, WAV, OGG ou OPUS n'importe où dans l'application pour
 les importer dans IndexedDB et les écouter **en entier**, sans serveur ni envoi de
-fichier.
+fichier. Le décodage des tags et des pochettes intégrées est confié à un noyau
+**Rust → WebAssembly** (`crates/import-core`), avec repli JavaScript.
 
 Des **Daily Mix personnalisés** sont calculés à partir des likes, de l'historique,
 des playlists et des genres — sans backend, sans profil envoyé nulle part : le plan
@@ -33,6 +34,16 @@ npm run dev        # http://127.0.0.1:5184
 ```
 
 Sur macOS, vous pouvez aussi **double-cliquer sur `Démarrer SpotifyCraft.command`**.
+
+Le noyau d'import Rust est fourni **précompilé** dans `src/wasm/import-core`
+(~45 Ko) : aucun outillage Rust n'est nécessaire pour lancer l'application ni
+pour la construire. Pour le reconstruire après une modification du crate :
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack        # ou binaire précompilé de wasm-pack
+npm run wasm:build
+```
 
 | Commande | Rôle |
 | --- | --- |
@@ -58,10 +69,10 @@ Sur macOS, vous pouvez aussi **double-cliquer sur `Démarrer SpotifyCraft.comman
 | Likés | Sélection automatique « Titres likés » lisible comme une playlist |
 | Historique | Alimenté uniquement quand un titre est **réellement audible**, page dédiée, lecture complète et effacement |
 | Bibliothèque | Titres likés, historique récent, artistes suivis, playlists — persistés en `localStorage` |
-| **Ma musique locale** | **Glisser-déposer** ou sélection de fichiers audio, stockage IndexedDB (métadonnées + blobs séparés), lecture complète dans le lecteur existant, filtrage, suppression unitaire ou totale ; compatible likes, playlists, historique et file d'attente |
+| **Ma musique locale** | **Glisser-déposer** (fichiers **ou dossier entier**), sélection de fichiers ou de dossier, stockage IndexedDB (métadonnées + blobs séparés), **dédoublonnage automatique** (fichier déjà importé, copie dans la sélection, même titre sous un autre nom), **progression album par album** et **pochettes intégrées** (ID3 APIC, FLAC PICTURE) extraites automatiquement, avec bouton de récupération pour les fichiers déjà importés ; lecture complète dans le lecteur existant, filtrage, suppression unitaire ou totale ; compatible likes, playlists, historique et file d'attente |
 | **Daily Mix** | Sélections personnelles calculées **localement** : profil de goût (likes, écoutes, playlists, artistes suivis), familles de genres, mix « artiste » et « favoris » ; plan stable pour la journée, cache local, recalcul manuel, lecture complète depuis l'accueil ou la page dédiée |
 | Option | **Aperçu audio au survol** des lignes (désactivé par défaut, activable dans le lecteur) |
-| Thème | Sombre (par défaut) et clair, responsive mobile/desktop, animations respectant `prefers-reduced-motion` |
+| Thème | Jour/nuit **automatique** selon le système (`prefers-color-scheme`), aucune bascule manuelle ; responsive mobile/desktop, animations respectant `prefers-reduced-motion` |
 
 ## Connexion Spotify (unique méthode de connexion)
 
@@ -103,6 +114,9 @@ scopes sont en lecture seule (`user-read-private`, `user-read-email`,
 vite.config.ts                 Vite 8 + plugin React + proxies
 server/itunesProxy.ts          /it/api/search, /it/api/lookup (cache borné)
 server/spotifyProxy.ts         /sp/api/* (Bearer utilisateur, cache borné, no-store)
+crates/import-core/            noyau Rust → WASM : ID3v2/ID3v1, APIC, FLAC/Vorbis, PICTURE
+src/lib/audioCore.ts           chargement unique du WASM + repli JavaScript
+src/wasm/import-core/          paquet WASM généré (versionné)
 src/api/itunes.ts              client iTunes (proxy puis direct)
 src/api/spotify.ts             client Web API Spotify
 src/api/spotifyAuth.ts         PKCE, refresh token dédupliqué, state OAuth
@@ -113,7 +127,10 @@ src/lib/tracks.ts              diversification des étagères
 src/lib/dailyMix.ts            profil de goût, familles de genres, plan et classement des Daily Mix
 src/lib/useDailyMixes.ts       chargement des mix + cache local du jour
 src/lib/id3.ts                 lecture des tags ID3v2/ID3v1 + nom de fichier
-src/lib/localLibrary.ts        IndexedDB (métadonnées + blobs), import, suppression
+src/lib/localLibrary.ts        IndexedDB (métadonnées + blobs), import album par album, suppression
+src/lib/importPlan.ts          dédoublonnage (fichier + titre) et regroupement par album
+src/lib/importFolder.ts        exploration récursive des dossiers déposés
+src/lib/coverArt.ts            pochettes intégrées (APIC / FLAC PICTURE) + vignettes
 src/lib/useLocalTracks.ts      liste locale réactive (import/suppression)
 src/lib/useKeyboardShortcuts.ts raccourcis globaux
 src/store.ts                   état persistant (lecteur, likes, playlists, historique)
@@ -136,6 +153,9 @@ Pour un hébergement statique, exposez les mêmes routes via un petit service
 - Tests unitaires sur la file de lecture, le rapprochement des extraits, les
   formats, les tags ID3, la diversification et la logique des Daily Mix
   (profil, plan, classement déterministe) : `npm test`.
+- Noyau Rust testé séparément : `cd crates/import-core && cargo test`
+  (ID3v2/ID3v1, APIC recto, description UTF-16, commentaires Vorbis, PICTURE,
+  tampon tronqué).
 - Caches mémoire des proxys bornés (pas de fuite), tokens jamais utilisés comme
   clés de cache, réponses personnelles en `Cache-Control: no-store`.
 - `ErrorBoundary` global : une erreur de rendu n'affiche plus une page blanche.
@@ -152,6 +172,25 @@ Pour un hébergement statique, exposez les mêmes routes via un petit service
   navigateur. Les pochettes intégrées ne sont pas extraites (une pochette dérivée
   du titre est générée). La lecture dépend des codecs supportés par le navigateur
   (FLAC/OPUS peuvent manquer sur certains systèmes).
+- Dédoublonnage : un fichier est reconnu par son **nom + sa taille**, un titre par
+  **artiste + album + durée à ±2 s**. Deux versions d'un même titre (live, remaster)
+  avec des durées différentes sont donc conservées ; un doublon exact n'est jamais
+  réimporté. Aucun hachage du contenu n'est calculé.
+- Le **dépôt direct d'un dossier** est exploré récursivement avec un garde-fou de
+  5 000 fichiers audio ; la sélection via « Importer un dossier » n'a pas cette
+  limite. Les gros dossiers affichent d'abord une phase « Analyse » (lecture des
+  tags) avant l'écriture album par album.
+- Pochettes : seuls **MP3 (frame ID3v2 APIC)** et **FLAC (bloc PICTURE)** sont
+  lus ; les images des M4A (`covr`), OGG/OPUS (`METADATA_BLOCK_PICTURE`) et WAV ne
+  sont pas extraites et gardent le visuel généré. Une image de plus de 8 Mo est
+  ignorée, et la vignette stockée est un JPEG carré de 240 px (recadré au centre)
+  pour ne pas gonfler IndexedDB ni `localStorage`.
+- Les listes qui gardent une copie du titre (likes, historique, playlists)
+  conservent la vignette d'origine ; la bibliothèque locale, elle, affiche
+  immédiatement la pochette extraite après « Récupérer les pochettes ».
+- Le noyau Rust/WASM est **optionnel** : si son chargement échoue (navigateur
+  sans WebAssembly, fichier absent), le repli JavaScript reprend la lecture des
+  tags et des pochettes MP3, mais pas les commentaires FLAC.
 - IndexedDB est propre au navigateur et au profil : les fichiers ne sont pas
   synchronisés entre appareils et peuvent être évincés si le quota de stockage est
   atteint (la persistance est demandée, sans garantie).

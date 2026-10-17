@@ -53,9 +53,6 @@ export interface PlayerState {
 }
 
 export interface AppState extends PlayerState {
-  theme: 'dark' | 'light';
-  toggleTheme: () => void;
-
   liked: Track[];
   toggleLike: (track: Track) => void;
 
@@ -111,9 +108,6 @@ const MAX_HISTORY = 100;
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
-      theme: 'dark',
-      toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
-
       liked: [],
       toggleLike: (track) =>
         set((s) => ({
@@ -342,7 +336,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'spotifycraft-store',
-      version: 5,
+      version: 6,
       partialize: (s) => {
         const {
           position: _position,
@@ -363,18 +357,24 @@ export const useStore = create<AppState>()(
       // v4 -> v5 : les comptes locaux (`user`, `accounts`, `signIn`, `signOut`)
       //            sont supprimés : l'authentification passe uniquement par
       //            Spotify (OAuth PKCE).
+      // v5 -> v6 : `theme` et `toggleTheme` disparaissent au profit du thème
+      //            automatique jour/nuit (préférence système, sans bascule).
       migrate: (persisted) => {
         const {
           user: _user,
           accounts: _accounts,
           signIn: _signIn,
           signOut: _signOut,
+          theme: _theme,
+          toggleTheme: _toggleTheme,
           ...state
         } = (persisted ?? {}) as Record<string, unknown>;
         void _user;
         void _accounts;
         void _signIn;
         void _signOut;
+        void _theme;
+        void _toggleTheme;
         const isTrack = (x: unknown): x is Track =>
           typeof x === 'object' && x !== null && typeof (x as Track).id === 'string' && !!(x as Track).title;
         const isArtist = (x: unknown): x is Artist =>

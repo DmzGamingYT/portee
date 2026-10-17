@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useStore } from '../store';
 import { useSpotify } from '../spotifyStore';
 import { beginLogin, fetchProfileSafe, isConfigured, logout } from '../api/spotify';
 import { isConnected } from '../api/spotifyAuth';
 import Icons from './icons';
 
 /**
- * Barre du haut : navigation, recherche, thème et **connexion Spotify**.
+ * Barre du haut : navigation, recherche et **connexion Spotify**.
+ *
+ * Le thème n'a pas de bouton : l'application suit automatiquement la
+ * préférence jour/nuit du système (voir `useAutoTheme`).
  *
  * L'application ne connaît aucune autre identité : il n'y a pas de compte
  * local, pas de mot de passe stocké. Un clic sur « Se connecter avec Spotify »
@@ -23,8 +25,6 @@ export default function TopBar() {
   const nav = useNavigate();
   const qParam = params.get('q') ?? '';
   const [q, setQ] = useState(qParam);
-  const theme = useStore((s) => s.theme);
-  const toggleTheme = useStore((s) => s.toggleTheme);
 
   const spConnected = useSpotify((s) => s.connected);
   const spProfile = useSpotify((s) => s.profile);
@@ -188,15 +188,6 @@ export default function TopBar() {
             </span>
           </button>
         )}
-
-        <button
-          className="icon-btn"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Thème clair' : 'Thème sombre'}
-          aria-label="Basculer le thème"
-        >
-          {theme === 'dark' ? Icons.sun(20) : Icons.moon(20)}
-        </button>
       </div>
 
       {spError && (
