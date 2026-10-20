@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "vitest run src/lib/importBench.test.ts --reporter=verbose",
+    "shots": "node scripts/screenshots.mjs",
     "check": "npm run typecheck && npm test && npm run build",
     "wasm:build": "wasm-pack build crates/import-core --release --target web --out-dir ../../src/wasm/import-core && node scripts/wasm-stamp.mjs",
     "wasm:check": "node scripts/wasm-stamp.mjs --check",
@@ -27,6 +28,7 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^6.1.2",
+    "playwright": "^1.64.1",
     "typescript": "^5.6.3",
     "vite": "^8.3.4",
     "vitest": "^4.1.12"

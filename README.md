@@ -97,6 +97,9 @@ votre propre `VITE_SPOTIFY_CLIENT_ID` (voir plus bas).
   <sub>Thème clair — l'application suit le système par défaut, ou se force en clair/sombre.</sub>
 </div>
 
+<sub>Ces captures ne sont pas retouchées : `npm run shots` les régénère depuis l'application
+lancée (Playwright), pour qu'elles suivent toujours l'interface réelle.</sub>
+
 ## 🚀 Fonctionnalités
 
 | | |
@@ -163,11 +166,21 @@ Sans identifiant, l'application reste pleinement utilisable avec le catalogue iT
 | `npm run typecheck` | vérification TypeScript stricte |
 | `npm test` | tests unitaires (Vitest), benchmark du noyau inclus |
 | `npm run bench` | benchmark détaillé du noyau WASM (temps par fichier) |
+| `npm run shots` | régénère les captures du README depuis l'app (Playwright) |
 | `npm run wasm:build` | reconstruit le paquet WASM + cachet d'intégrité |
 | `npm run wasm:check` | échoue si le paquet WASM versionné est périmé |
 | `npm run wasm:verify` | reconstruit avec wasm-pack puis compare au paquet versionné |
 | `npm run build` | build de production dans `dist/` |
 | `npm run preview` | sert `dist/` sur `:5185` (proxies actifs) |
+
+**Captures du README** — une seule installation par machine, puis une commande :
+
+```bash
+npx playwright install chromium   # une fois
+npm run shots                    # démarre l'app si besoin, écrit docs/screenshots/
+ONLY=home,mobile npm run shots   # seulement quelques écrans
+BASE_URL=http://127.0.0.1:5184 npm run shots   # vise une instance déjà lancée
+```
 
 ## 🧱 Architecture
 
