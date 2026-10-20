@@ -23,7 +23,7 @@ export default function Layout() {
   // Onglet : le titre en cours, pour retrouver l'app parmi d'autres onglets.
   const track = useStore(currentTrack);
   useEffect(() => {
-    document.title = track ? `${track.title} · ${track.artist} — SpotifyCraft` : 'SpotifyCraft';
+    document.title = track ? `${track.title} · ${track.artist} — Portée` : 'Portée';
   }, [track]);
 
   // Palette de commandes : ⌘K / Ctrl+K depuis n'importe où dans l'app.

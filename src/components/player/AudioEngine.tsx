@@ -393,7 +393,7 @@ function useAudioEngine(): React.RefObject<HTMLAudioElement> {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title,
       artist: track.artist,
-      album: track.album || 'SpotifyCraft',
+      album: track.album || 'Portée',
       artwork: track.cover ? [{ src: track.cover, sizes: '600x600' }] : [],
     });
   }, [track]);

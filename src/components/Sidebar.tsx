@@ -19,9 +19,9 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <NavLink className="brand" to="/" aria-label="SpotifyCraft — accueil" title="SpotifyCraft — accueil">
-        <span className="brand-dot" aria-hidden>{Icons.spotify(24)}</span>
-        <span>SpotifyCraft</span>
+      <NavLink className="brand" to="/" aria-label="Portée — accueil" title="Portée — accueil">
+        <span className="brand-dot" aria-hidden>{Icons.note(24)}</span>
+        <span>Portée</span>
       </NavLink>
 
       {/* En dessous de 960 px la colonne se réduit aux icônes : chaque lien

@@ -83,7 +83,7 @@ function middleware(): Connect.NextHandleFunction {
           signal: ctrl.signal,
           headers: {
             Accept: 'application/json',
-            'User-Agent': 'SpotifyCraft/0.1 (clone open-source; +local)',
+            'User-Agent': 'Portee/0.1 (lecteur open source; +local)',
           },
         });
         const body = await upstream.text();

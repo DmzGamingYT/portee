@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🎧 SpotifyCraft
+# 🎵 Portée
 
-**Un lecteur musical open-source façon Spotify — recherche, albums, artistes, playlists, file d'attente, paroles et extraits officiels. Aucune clé API, aucun compte obligatoire.**
+**Un lecteur musical open source, complet et sans compte obligatoire — recherche, albums, artistes, playlists, file d'attente, paroles et extraits officiels. Aucune clé API.**
 
 [![CI](https://github.com/DmzGamingYT/spotifycraft/actions/workflows/ci.yml/badge.svg)](https://github.com/DmzGamingYT/spotifycraft/actions/workflows/ci.yml)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-1db954.svg)](LICENSE)
@@ -14,15 +14,15 @@
 
 [Fonctionnalités](#-fonctionnalités) · [Aperçu](#-aperçu) · [Démarrage](#-démarrage-rapide) · [Architecture](#-architecture) · [Qualité](#-qualité--tests)
 
-<img src="docs/screenshots/home.jpg" alt="Accueil de SpotifyCraft : raccourcis de playlists, écoutés récemment et Daily Mix" width="100%">
+<img src="docs/screenshots/home.jpg" alt="Accueil de Portée : Daily Mix, genres et nouveautés" width="100%">
 
-<sub>Accueil — raccourcis de playlists, historique, Daily Mix personnalisés et étagères de genres.</sub>
+<sub>Accueil — Daily Mix personnalisés, filtres de genres et étagères du catalogue.</sub>
 
 </div>
 
 ---
 
-## ✨ Pourquoi SpotifyCraft ?
+## ✨ Pourquoi Portée ?
 
 Une interface de musique complète qui tourne **entièrement dans le navigateur** :
 
@@ -30,6 +30,9 @@ Une interface de musique complète qui tourne **entièrement dans le navigateur*
 - **Aucun compte local** : la connexion, optionnelle, passe par **Spotify OAuth PKCE** (sans secret) pour enrichir les métadonnées.
 - **Vos fichiers, en entier** : glissez un dossier de MP3, FLAC, WAV, M4A, OGG ou OPUS — il est importé dans **IndexedDB** et lu sans serveur.
 - **Vos données restent chez vous** : likes, playlists, historique et mix sont stockés localement, jamais envoyés.
+
+> **Portée** est l'application musique de la collection **[Craftline](https://site-837caca50a67485a994f4549b9ef7404.freebuff.page/collection/)** —
+> avec **Séquence** (vidéo) et **Battement** (santé). Même promesse : open source, sans abonnement, sans télémétrie.
 
 ## 🖼️ Aperçu
 
@@ -46,8 +49,8 @@ Une interface de musique complète qui tourne **entièrement dans le navigateur*
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/nowplaying.jpg" alt="Vue grand format avec pochette, paroles synchronisées et commandes" width="100%">
-      <sub><b>Vue grand format</b> — pochette, paroles, progression, volume et « À suivre », fermable au glissement.</sub>
+      <img src="docs/screenshots/nowplaying.jpg" alt="Vue grand format avec pochette, paroles et commandes" width="100%">
+      <sub><b>Vue grand format</b> — pochette, halo flouté, paroles, progression, volume et « À suivre ».</sub>
     </td>
     <td width="50%">
       <img src="docs/screenshots/queue.jpg" alt="File d'attente avec glisser-déposer" width="100%">
@@ -66,8 +69,8 @@ Une interface de musique complète qui tourne **entièrement dans le navigateur*
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/library.jpg" alt="Bibliothèque avec titres likés, historique et playlists" width="100%">
-      <sub><b>Bibliothèque</b> — likes, historique, artistes suivis et playlists persistants.</sub>
+      <img src="docs/screenshots/liked.jpg" alt="Titres likés avec export M3U" width="100%">
+      <sub><b>Titres likés</b> — sélection persistante, lecture en un clic et export M3U.</sub>
     </td>
     <td width="50%">
       <img src="docs/screenshots/mobile.png" alt="Version mobile de l'application" width="100%">
@@ -77,7 +80,7 @@ Une interface de musique complète qui tourne **entièrement dans le navigateur*
 </table>
 
 <div align="center">
-  <img src="docs/screenshots/light.jpg" alt="Thème clair de SpotifyCraft" width="100%">
+  <img src="docs/screenshots/light.jpg" alt="Thème clair de Portée" width="100%">
   <sub>Thème clair — l'application suit le système par défaut, ou se force en clair/sombre.</sub>
 </div>
 
@@ -99,6 +102,14 @@ Une interface de musique complète qui tourne **entièrement dans le navigateur*
 | **Thème & accessibilité** | Thème système par défaut (ou clair/sombre), focus visible, pièges à focus, libellés ARIA, contrastes, `prefers-reduced-motion`, lien d'évitement. |
 | **Lecteur avancé** | **Égaliseur 10 bandes** + presets, visualiseur audio, MediaSession (écran verrouillé, casque), raccourcis `Espace` `←/→` `Maj+←/→` `M` `S` `R`. |
 
+## 🧩 La collection Craftline
+
+| Application | Rôle | Dépôt |
+| --- | --- | --- |
+| **Séquence** | Client vidéo : recherche, lecteur, Shorts, abonnements. | [tubecraft](https://github.com/DmzGamingYT/tubecraft) |
+| **Portée** | Lecteur musical : catalogue, extraits, paroles, fichiers locaux. | ce dépôt |
+| **Battement** | Suivi sportif et santé local-first, coach IA. | [pulsecraft](https://github.com/DmzGamingYT/pulsecraft) |
+
 ## ⚡ Démarrage rapide
 
 Prérequis : **Node.js ≥ 20.19** (ou ≥ 22.12 pour Vite 8).
@@ -110,7 +121,7 @@ npm ci
 npm run dev        # http://127.0.0.1:5184
 ```
 
-Sur macOS, vous pouvez aussi **double-cliquer sur `Démarrer SpotifyCraft.command`**.
+Sur macOS, vous pouvez aussi **double-cliquer sur `Démarrer Portée.command`**.
 
 Le noyau d'import Rust est fourni **précompilé** (~45 Ko) dans `src/wasm/import-core` :
 aucun outillage Rust n'est nécessaire pour lancer ou construire l'application.
@@ -127,7 +138,7 @@ Le flux est **Authorization Code + PKCE** : aucun `client_secret` côté navigat
 Sans identifiant, l'application reste pleinement utilisable avec le catalogue iTunes.
 
 > **Extraits Spotify** — depuis fin 2024, Spotify ne garantit plus `preview_url` aux
-> nouvelles applications. SpotifyCraft garde Spotify pour les métadonnées et
+> nouvelles applications. Portée garde Spotify pour les métadonnées et
 > **complète les extraits manquants avec iTunes**. Si rien n'est trouvé, les titres
 > iTunes prennent le relais pour que la lecture reste possible.
 
@@ -204,7 +215,7 @@ via un petit service (Cloudflare Worker, Netlify/Vercel function) — le front n
 
 ## 📄 Licence
 
-SpotifyCraft est publié sous licence [MIT](LICENSE) — libre à chacun d'utiliser,
+Portée est publié sous licence [MIT](LICENSE) — libre à chacun d'utiliser,
 modifier et redistribuer.
 
 <div align="center">

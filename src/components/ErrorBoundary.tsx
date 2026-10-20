@@ -17,7 +17,7 @@ export default class ErrorBoundary extends Component<
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // Visible en console pour le débogage local ; pas de service externe.
-    console.error('SpotifyCraft — erreur de rendu', error, info.componentStack);
+    console.error('Portée — erreur de rendu', error, info.componentStack);
   }
 
   render() {
