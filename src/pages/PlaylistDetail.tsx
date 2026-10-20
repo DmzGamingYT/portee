@@ -5,6 +5,7 @@ import { fmtTotal } from '../lib/format';
 import TrackRow from '../components/TrackRow';
 import { gradientOf } from '../lib/format';
 import { isPlayable } from '../lib/tracks';
+import { downloadPlaylist } from '../lib/m3u';
 import Icons from '../components/icons';
 
 /** Page détaillée d'une playlist locale — « liked » est une pseudo-playlist en lecture seule. */
@@ -75,6 +76,7 @@ export default function PlaylistDetail() {
           )}
           <div className="detail-meta muted">
             {tracks.length} titre{tracks.length > 1 ? 's' : ''}{total > 0 ? ` · ${fmtTotal(total)}` : ''}
+            {tracks.some((t) => t.preview && !t.localId) ? ' · extraits 30 s' : ''}
           </div>
           <div className="detail-actions">
             <button
@@ -83,6 +85,14 @@ export default function PlaylistDetail() {
               onClick={() => play(playable, 0, name)}
             >
               {Icons.play(18)} Lecture
+            </button>
+            <button
+              className="btn ghost"
+              disabled={tracks.length === 0}
+              title="Exporter en M3U (VLC, foobar2000, Winamp…)"
+              onClick={() => downloadPlaylist(name, tracks)}
+            >
+              {Icons.download(18)} Exporter
             </button>
             {!isLiked && (
               <>

@@ -10,8 +10,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "vitest run src/lib/importBench.test.ts --reporter=verbose",
     "check": "npm run typecheck && npm test && npm run build",
-    "wasm:build": "wasm-pack build crates/import-core --release --target web --out-dir ../../src/wasm/import-core"
+    "wasm:build": "wasm-pack build crates/import-core --release --target web --out-dir ../../src/wasm/import-core && node scripts/wasm-stamp.mjs",
+    "wasm:check": "node scripts/wasm-stamp.mjs --check",
+    "wasm:verify": "node scripts/wasm-verify.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

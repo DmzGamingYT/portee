@@ -50,7 +50,15 @@ describe('gradientOf', () => {
   });
 
   it('produit un dégradé CSS valide et distinct', () => {
-    expect(gradientOf('a')).toMatch(/^linear-gradient\(135deg, hsl\(\d+ 70% 45%\), hsl\(\d+ 70% 30%\)\)$/);
+    expect(gradientOf('a')).toMatch(/^linear-gradient\(135deg(, hsl\(\d+ \d+% \d+%\)){2}\)$/);
     expect(gradientOf('a')).not.toBe(gradientOf('b'));
+  });
+
+  it('reste assez sombre pour un titre blanc (chaque arrêt ≤ 34 %)', () => {
+    const stops = [...gradientOf('titres likés').matchAll(/hsl\(\d+ \d+% (\d+)%\)/g)].map((m) =>
+      Number(m[1])
+    );
+    expect(stops).toHaveLength(2);
+    for (const lightness of stops) expect(lightness).toBeLessThanOrEqual(34);
   });
 });

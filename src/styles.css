@@ -90,23 +90,39 @@ input { font: inherit; }
   color: var(--muted); font-weight: 800; margin: 4px 10px 8px;
 }
 .side-playlist {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 8px 10px; border-radius: 6px;
+  display: flex; flex-direction: row; align-items: center; gap: 10px;
+  padding: 6px 10px; border-radius: 6px;
 }
 .side-playlist:hover { background: var(--panel); }
 .side-cover {
-  width: 44px; height: 44px; border-radius: 6px;
+  width: 40px; height: 40px; border-radius: 6px; flex: none;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; overflow: hidden; margin-bottom: 4px;
+  color: #fff; overflow: hidden;
 }
+.side-pl-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .side-cover img { width: 100%; height: 100%; object-fit: cover; }
 .side-pl-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .side-pl-count { font-size: 12px; color: var(--muted); }
 .side-empty { color: var(--muted); font-size: 12.5px; padding: 0 10px; }
-.side-hint {
-  color: var(--muted); font-size: 11px; text-align: center;
+.side-footer {
+  display: flex; flex-direction: column; gap: 4px;
   border-top: 1px solid var(--border); padding-top: 8px;
 }
+.side-hint { color: var(--muted); font-size: 11px; text-align: center; }
+
+/* --- préférences : même ligne que la navigation, menu vers le haut --- */
+.prefs-summary { cursor: pointer; }
+.prefs-title {
+  padding: 6px 10px 4px; font-size: 11px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); font-weight: 800;
+}
+.prefs-options { display: flex; flex-direction: column; gap: 1px; }
+.prefs-radio { cursor: pointer; gap: 10px; }
+.prefs-radio input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.prefs-icon { display: inline-flex; color: var(--muted); }
+.prefs-label { display: flex; flex-direction: column; line-height: 1.25; }
+.prefs-label small { color: var(--muted); font-size: 11.5px; font-weight: 500; }
+.prefs-radio:has(input:checked) .prefs-icon, .prefs-radio:has(input:checked) .prefs-label { color: var(--text); }
 
 /* ---------------------------------- topbar --------------------------------- */
 
@@ -120,13 +136,13 @@ input { font: inherit; }
 .topbar-left { display: flex; gap: 4px; }
 .topbar-right { margin-left: auto; display: flex; gap: 6px; }
 .search-pill {
-  flex: 1; max-width: 460px;
+  flex: 1; max-width: 460px; min-width: 0;
   display: flex; align-items: center; gap: 4px;
   background: var(--panel); border-radius: 999px;
   padding: 6px 8px;
 }
 .search-input {
-  flex: 1; background: none; border: none; outline: none;
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
   color: var(--text); padding: 4px 8px; font-size: 14px;
 }
 .search-input::placeholder { color: var(--muted); }
@@ -307,7 +323,9 @@ input { font: inherit; }
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
 }
-.shortcut-block {
+/* Double classe : `.shortcut` (flex) est déclaré plus bas dans le fichier et
+   écrasait sinon le `display: grid` de cette variante. */
+.shortcut.shortcut-block {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
   grid-template-rows: auto auto;
@@ -324,8 +342,14 @@ input { font: inherit; }
   background: rgba(0, 0, 0, 0.28); color: rgba(255, 255, 255, 0.9);
   font-weight: 800; font-size: 22px;
 }
-.shortcut-block .shortcut-name { grid-column: 2; padding-right: 0; color: #fff; }
-.shortcut-block .shortcut-count { grid-column: 2; color: rgba(255, 255, 255, 0.75); font-size: 12px; }
+.shortcut-block .shortcut-name {
+  grid-column: 2; grid-row: 1; align-self: end;
+  padding-right: 0; color: #fff;
+}
+.shortcut-block .shortcut-count {
+  grid-column: 2; grid-row: 2; align-self: start;
+  color: rgba(255, 255, 255, 0.75); font-size: 12px;
+}
 .shortcut-count { font-size: 12px; }
 .shortcuts {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -413,6 +437,9 @@ input { font: inherit; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .card-sub a:hover { color: var(--text); text-decoration: underline; }
+/* Carte Daily Mix : le nombre de titres passe en tête, ainsi la troncature
+   éventuelle ne coupe que la raison (« 24 titres · Pour découvrir… »). */
+.mix-card .card-sub { white-space: nowrap; }
 .card-skeleton { pointer-events: none; }
 
 .artist-card { align-items: center; text-align: center; }
@@ -427,37 +454,70 @@ input { font: inherit; }
 }
 .track-row {
   display: grid;
-  grid-template-columns: 20px 44px minmax(0, 2fr) minmax(0, 1fr) auto 40px;
+  grid-template-columns: 26px 44px minmax(0, 2fr) minmax(0, 1fr) minmax(96px, auto);
   align-items: center; gap: 12px;
   padding: 7px 10px; border-radius: 6px;
-  cursor: default;
+  cursor: pointer;
 }
 .track-row:hover { background: var(--panel); }
 .track-row.unplayable { opacity: 0.5; cursor: not-allowed; }
 .track-row.active .row-title { color: var(--accent); }
-.row-index {
-  font-variant-numeric: tabular-nums; color: var(--muted);
-  font-size: 13px; text-align: center; display: flex; justify-content: center;
-  min-height: 20px; align-items: center;
+/* Bouton lecture de la ligne : seul contrôle clavier de la rangée (les liens
+   et menus restent des éléments interactifs natifs). */
+.row-play {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); opacity: 0;
+  transition: opacity var(--dur-fast) ease, color var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-spring);
 }
+.track-row:hover .row-play,
+.track-row:focus-within .row-play,
+.track-row.active .row-play { opacity: 1; }
+.row-play:hover { color: var(--text); transform: scale(1.1); }
+.track-row.unplayable .row-play { opacity: 0.35; }
 .row-cover .cover { width: 40px; height: 40px; }
 .row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .row-title {
   font-size: 14.5px; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.row-artist a, .row-artist { font-size: 12.5px; color: var(--muted); }
+.row-artist {
+  display: block;
+  min-width: 0;
+  font-size: 12.5px; color: var(--muted);
+  /* Un nom d'artiste long ne doit jamais faire grandir la ligne : sur mobile,
+     sans ça, « Daft Punk, Pharrell Williams & Nile Rodgers » s'étalait sur
+     quatre lignes et poussait le titre à « Get Lu… ». */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.row-artist a { font-size: 12.5px; color: var(--muted); }
 .row-artist a:hover { color: var(--text); text-decoration: underline; }
 .row-album {
   font-size: 13px; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .row-album a:hover { color: var(--text); text-decoration: underline; }
-.row-actions { display: flex; align-items: center; gap: 4px; }
+/* Fin de ligne : la durée reste toujours lisible ; les actions la remplacent
+   au survol (ou au focus clavier), sans déplacer la colonne. */
+.row-end {
+  position: relative; display: flex; align-items: center; justify-content: flex-end;
+  min-width: 96px; height: 26px;
+}
 .row-duration {
   font-variant-numeric: tabular-nums;
-  font-size: 13px; color: var(--muted); min-width: 40px; text-align: right;
+  font-size: 13px; color: var(--muted); text-align: right;
+  transition: opacity var(--dur-fast) ease;
 }
+.row-buttons {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: flex-end; gap: 2px;
+  opacity: 0; transition: opacity var(--dur-fast) ease;
+}
+.track-row:hover .row-buttons,
+.track-row:focus-within .row-buttons { opacity: 1; }
+.track-row:hover .row-duration,
+.track-row:focus-within .row-duration { opacity: 0; }
 
 /* ----------------------------------- menu ⊕ -------------------------------- */
 
@@ -537,7 +597,13 @@ html[data-theme='light'] .menu-body { background: #ffffff; }
 }
 .source-badge::before {
   content: ''; width: 7px; height: 7px; border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent); flex: none;
+}
+.source-badge__detail { white-space: nowrap; }
+/* Sur un écran étroit, la précision « officiels 30 s » passait à la ligne
+   toute seule et laissait un « s » orphelin. Le badge garde l'essentiel. */
+@media (max-width: 640px) {
+  .source-badge__detail { display: none; }
 }
 
 /* ---------------------------------- bibliothèque ---------------------------- */
@@ -797,16 +863,18 @@ html[data-theme='light'] .import-toast { background: #ffffff; color: var(--text)
   .app { grid-template-columns: 76px 1fr; }
   .sidebar { padding: 12px 6px; }
   .brand span:last-child, .side-link span, .side-title, .side-playlist .side-pl-name,
-  .side-playlist .side-pl-count, .side-empty, .side-hint { display: none; }
+  .side-playlist .side-pl-count, .side-pl-text, .side-empty, .side-hint { display: none; }
   /* Le logo n'ayant plus de texte, il se centre comme les icônes de nav. */
   .brand { justify-content: center; padding: 6px 0; }
   .side-link { justify-content: center; padding: 12px 6px; }
+  /* La colonne est étroite : le menu s'ouvre vers la droite du contenu. */
+  .prefs-menu .menu-body { left: 0; right: auto; }
   .side-cover { width: 30px; height: 30px; margin: 0 auto; }
   .side-playlist { padding: 8px 0; align-items: center; }
   .content { padding: 8px 18px 32px; }
   .topbar { padding: 10px 18px; }
   .row-album { display: none; }
-  .track-row { grid-template-columns: 20px 44px minmax(0, 1fr) auto; }
+  .track-row { grid-template-columns: 26px 44px minmax(0, 1fr) minmax(96px, auto); }
   .player { grid-template-columns: minmax(120px, 1fr) 2fr minmax(110px, 1fr); padding: 8px 12px; }
   .player-context { display: none; }
   .detail-title.big { font-size: 30px; }
@@ -885,12 +953,9 @@ html[data-theme='light'] .card:hover {
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.14);
 }
 
-/* --- lignes de titre : translucidité + glissement de l'index --- */
+/* --- lignes de titre : transition de fond --- */
 .track-row { transition: background var(--dur-fast) ease; }
-.row-index {
-  transition: color var(--dur-fast) ease, transform var(--dur-fast) ease;
-}
-.track-row:hover .row-index { transform: scale(1.15); }
+
 
 /* --- bouton lecture : pulse discret --- */
 .play-btn { transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast) ease; }
@@ -954,7 +1019,6 @@ html[data-theme='light'] .card:hover {
   0%, 100% { transform: scaleY(0.5); }
   50% { transform: scaleY(1); }
 }
-.track-row.active .row-index svg,
 .card.active .play-fab svg {
   animation: eqPulse 1.1s ease-in-out infinite;
 }
@@ -970,7 +1034,6 @@ html[data-theme='light'] .card:hover {
   .import-progress-track.indeterminate span,
   .icon-btn.accent svg,
   .menu[open] .menu-body,
-  .track-row.active .row-index svg,
   .card.active .play-fab svg {
     animation: none !important;
   }
@@ -1194,6 +1257,13 @@ html[data-theme='light'] .card:hover {
   .player-left { flex: 1; min-width: 0; }
 }
 
+/* --- tablette : la barre du haut doit tenir sans élargir la page --------- */
+@media (max-width: 900px) {
+  .topbar { gap: 8px; }
+  .sp-label { display: none; }
+  .sp-pill { padding: 8px 10px; }
+}
+
 /* --- mobile : barre du haut compacte (pas de débordement horizontal) --- */
 @media (max-width: 640px) {
   .topbar { padding: 8px 12px; gap: 8px; }
@@ -1204,4 +1274,1069 @@ html[data-theme='light'] .card:hover {
   .sp-label { display: none; }
   .account-name { display: none; }
   .side-badge { display: none; }
+}
+
+/* ================================================================
+   v1.3 — finition visuelle : profondeur, transitions, détails
+   ================================================================ */
+
+:root {
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 13px;
+  --r-xl: 18px;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.22);
+  --shadow-2: 0 6px 16px rgba(0, 0, 0, 0.38), 0 16px 38px rgba(0, 0, 0, 0.3);
+  --shadow-3: 0 12px 28px rgba(0, 0, 0, 0.42), 0 28px 64px rgba(0, 0, 0, 0.36);
+  --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 6px 20px color-mix(in srgb, var(--accent) 22%, transparent);
+  --pop: cubic-bezier(0.2, 0.9, 0.2, 1.02);
+}
+html[data-theme='light'] {
+  --shadow-1: 0 1px 2px rgba(20, 16, 16, 0.08), 0 2px 8px rgba(20, 16, 16, 0.06);
+  --shadow-2: 0 6px 16px rgba(20, 16, 16, 0.12), 0 16px 36px rgba(20, 16, 16, 0.1);
+  --shadow-3: 0 12px 26px rgba(20, 16, 16, 0.16), 0 26px 58px rgba(20, 16, 16, 0.12);
+}
+
+/* --- cartes : relief, survol qui décolle, pochette vivante --- */
+.card {
+  border-radius: var(--r-lg);
+  padding: 12px;
+  gap: 6px;
+  box-shadow: var(--shadow-1);
+  transition: background var(--dur-med) var(--ease-out),
+    transform var(--dur-med) var(--pop), box-shadow var(--dur-med) var(--ease-out);
+}
+.card:hover { background: var(--panel); transform: translateY(-4px); box-shadow: var(--shadow-2); }
+.card:active { transform: translateY(-1px) scale(0.995); }
+.card-media { border-radius: var(--r-md); overflow: hidden; }
+.cover { border-radius: var(--r-sm); }
+.card:hover .cover { filter: saturate(1.06) brightness(1.03); }
+.card-title { margin-top: 8px; letter-spacing: -0.005em; }
+.card-sub { line-height: 1.35; }
+.cover.round { border-radius: 50%; }
+
+/* --- bouton lecture : n'apparaît qu'au survol (et reste visible si actif) --- */
+.card-media .play-fab { opacity: 0; transform: translateY(8px) scale(0.92); }
+.card:hover .play-fab,
+.card:focus-within .play-fab,
+.card.active .play-fab,
+.card-media .play-fab.playing { opacity: 1; transform: none; }
+
+/* --- rangées d'étagère : respiration et défilement discret --- */
+.section-title { align-items: center; padding: 10px 0 6px; }
+.section-title h2 { font-size: 22px; }
+.shelf-row { gap: 18px; padding: 4px 2px 14px; }
+.see-all {
+  padding: 6px 12px; border-radius: 999px;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.see-all:hover { background: var(--panel); text-decoration: none; }
+
+/* --- filtres de genre : pilules plus nettes, défilement suggéré --- */
+.chipbar {
+  gap: 9px;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+}
+.chip { padding: 7px 15px; box-shadow: inset 0 0 0 1px var(--border); }
+.chip:hover { transform: translateY(-1px); }
+.chip-active { box-shadow: var(--shadow-1); }
+.chip:focus-visible { outline-offset: 2px; }
+
+/* --- lignes de titre : survol lisible, lecture surlignée, actions au besoin --- */
+.track-row {
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+  transition: background var(--dur-fast) ease;
+}
+.track-row:hover { background: var(--panel); }
+.track-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.track-row.active:hover { background: color-mix(in srgb, var(--accent) 17%, transparent); }
+.track-row:focus-within { background: var(--panel); }
+.row-cover .cover { border-radius: var(--r-sm); box-shadow: var(--shadow-1); }
+
+
+/* --- barre de lecture : verre dépoli, poignée de progression, contrôles --- */
+.player {
+  background: color-mix(in srgb, var(--bg-elev) 92%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.24);
+}
+html[data-theme='light'] .player { box-shadow: 0 -8px 24px rgba(20, 16, 16, 0.08); }
+.player-cover { border-radius: var(--r-md); box-shadow: var(--shadow-2); }
+.play-btn {
+  width: 40px; height: 40px;
+  box-shadow: var(--shadow-1);
+  transition: transform 0.14s var(--pop), box-shadow 0.14s ease, filter 0.14s ease;
+}
+.play-btn:hover { transform: scale(1.07); box-shadow: var(--shadow-2); }
+.player-btns .icon-btn:hover { background: var(--panel); color: var(--text); }
+.player-btns .icon-btn.on { color: var(--accent); }
+.progress-bar { height: 5px; border-radius: 3px; transition: height 0.12s ease; }
+.progress-fill { border-radius: 3px; }
+.progress-fill::after {
+  content: ''; position: absolute; right: -5px; top: 50%;
+  width: 11px; height: 11px; margin-top: -5.5px; border-radius: 50%;
+  background: var(--text); opacity: 0; transition: opacity 0.12s ease;
+}
+.progress-bar:hover .progress-fill::after,
+.progress-bar:focus-visible .progress-fill::after { opacity: 1; }
+
+/* --- barre latérale : lignes plus douces, pochettes de playlist --- */
+.side-link, .side-playlist {
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-out);
+}
+.side-link:active, .side-playlist:active { transform: scale(0.985); }
+.side-cover { border-radius: var(--r-sm); box-shadow: var(--shadow-1); }
+
+/* --- barre du haut : champ de recherche vivant --- */
+.search-pill { transition: box-shadow var(--dur-fast) ease, background var(--dur-fast) ease; }
+.search-pill:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.icon-btn:hover { background: var(--panel); }
+
+/* --- pages de détail : pochette plus présente --- */
+.detail-cover { border-radius: var(--r-lg); box-shadow: var(--shadow-3); }
+.detail-cover-empty { border-radius: var(--r-lg); }
+.artist-photo { box-shadow: var(--shadow-3); }
+
+/* --- états vides : un vrai bloc, pas juste du texte --- */
+.empty-note {
+  background: linear-gradient(180deg, var(--bg-elev), color-mix(in srgb, var(--bg-elev) 65%, var(--bg)));
+  border-radius: var(--r-lg);
+  padding: 28px 26px;
+  box-shadow: var(--shadow-1);
+}
+
+/* --- squelettes : balayage lumineux plutôt que clignotement --- */
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--skeleton) 28%,
+    color-mix(in srgb, var(--skeleton) 45%, transparent) 46%,
+    var(--skeleton) 64%
+  );
+  background-size: 320% 100%;
+  animation: shimmer 1.7s linear infinite;
+  border-radius: var(--r-md);
+}
+@keyframes shimmer {
+  from { background-position: 130% 0; }
+  to { background-position: -30% 0; }
+}
+
+/* --- tactile : les actions cachées restent accessibles --- */
+@media (hover: none) {
+  .row-buttons, .row-play, .card-media .play-fab { opacity: 1; transform: none; }
+}
+
+/* --- bannière de détail : profondeur, scrim lisible, pochette posée -------- */
+.detail-head {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.detail-head::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(130% 150% at 8% -20%, rgba(255, 255, 255, 0.16), transparent 58%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.3) 62%, rgba(0, 0, 0, 0.52) 100%);
+}
+.detail-head > * { position: relative; z-index: 1; }
+.detail-cover-empty {
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(255, 255, 255, 0.22), transparent 62%),
+    color-mix(in srgb, #000 34%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), var(--shadow-3);
+  color: rgba(255, 255, 255, 0.82);
+}
+.detail-title { text-wrap: balance; text-shadow: 0 1px 18px rgba(0, 0, 0, 0.26); }
+.detail-kind { color: rgba(255, 255, 255, 0.9); }
+
+/* Le dégradé de la bannière est toujours sombre : son contenu reste blanc,
+   y compris en thème clair où `--text` est foncé. */
+.detail-head { color: #fff; }
+.detail-head .detail-title { color: #fff; }
+.detail-head .btn.ghost {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+.detail-head .btn.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.detail-head .btn.ghost:disabled { color: rgba(255, 255, 255, 0.45); }
+.detail-head .icon-btn { color: rgba(255, 255, 255, 0.86); }
+.detail-head .icon-btn:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.detail-head .text-input {
+  background: rgba(0, 0, 0, 0.32);
+  border-color: rgba(255, 255, 255, 0.26);
+  color: #fff;
+}
+
+/* --- recherche : en-tête de résultats au lieu d'un champ dupliqué -------- */
+.search-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 0 14px;
+}
+.search-kicker {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.search-term {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.search-head .spinner { align-self: center; }
+
+/* --- étagères : un dégradé de bord signale qu'il reste du contenu à droite - */
+.shelf-row {
+  mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent);
+}
+
+
+
+/* --- vue grand format : pochette cliquable dans la barre de lecture -------- */
+.player-cover-btn {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  line-height: 0;
+  border-radius: var(--r-md);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) ease;
+}
+.player-cover-btn:hover { transform: scale(1.05); box-shadow: var(--shadow-2); }
+.player-cover-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* --- vue grand format : panneau qui glisse depuis la droite --------------- */
+.now-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  border: 0;
+  cursor: default;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(3px);
+  animation: fadeIn var(--dur-fast) ease both;
+}
+
+.now-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  width: min(430px, 100vw);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-elev);
+  border-left: 1px solid var(--border);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.45);
+  /* Pas de `fill-mode` : après l'entrée, le glissement doit reprendre la main. */
+  animation: nowSlide var(--dur-med) var(--ease-out);
+  transition: transform var(--dur-med) var(--ease-out);
+}
+.now-panel.dragging { transition: none; }
+
+/* Conteneur défilant : le panneau, lui, ne défile pas (halo et voile fixes). */
+.now-scroll {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@keyframes nowSlide {
+  from { transform: translateX(26px); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+
+/* Halo : la pochette très floutée derrière le contenu. */
+.now-blur {
+  position: absolute;
+  inset: -70px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(42px) saturate(165%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+html[data-theme='light'] .now-blur { opacity: 0.3; }
+.now-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 26%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 74%, transparent) 58%,
+    var(--bg-elev) 94%
+  );
+}
+.now-head,
+.now-body,
+.now-empty { position: relative; z-index: 1; }
+
+.now-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 10px;
+  touch-action: none;
+}
+
+/* Poignée de glissement : le geste se voit (tactile) et se devine (souris). */
+.now-grab {
+  display: block;
+  position: relative;
+  z-index: 1;
+  height: 16px;
+  margin-top: 6px;
+  cursor: grab;
+  touch-action: none;
+}
+.now-grab span {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  width: 46px;
+  height: 4px;
+  margin-left: -23px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 30%, transparent);
+}
+.now-grab:active { cursor: grabbing; }
+.now-kicker {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.now-context {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--text);
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.now-head-text { min-width: 0; }
+
+.now-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 20px 26px;
+}
+.now-art {
+  width: min(100%, 340px);
+  height: min(38vh, 320px);
+  margin: 0 auto;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  box-shadow: var(--shadow-3);
+}
+.now-art img { width: 100%; height: 100%; object-fit: cover; }
+.now-art-empty { color: var(--muted); }
+
+.now-titles { display: flex; flex-direction: column; gap: 5px; }
+.now-title {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.now-artist {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--muted);
+  min-width: 0;
+}
+.now-artist a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-artist a:hover { color: var(--text); text-decoration: underline; }
+.now-album { font-size: 12.5px; color: var(--muted); }
+.now-album a:hover { color: var(--text); text-decoration: underline; }
+
+.now-progress { display: flex; flex-direction: column; gap: 6px; }
+/* En colonne, `flex: 1` annulerait la hauteur : la barre garde la sienne. */
+.now-progress .progress-bar { flex: none; width: 100%; }
+.progress-bar.big { height: 6px; border-radius: 3px; }
+.now-times { display: flex; justify-content: space-between; }
+.now-times .time { min-width: 0; }
+
+.now-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.now-controls .icon-btn { width: 44px; height: 44px; }
+.now-controls .play-btn.big { width: 60px; height: 60px; }
+
+.now-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.now-volume { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 230px; }
+.now-volume .volume { flex: 1; }
+
+.now-up-next { display: flex; flex-direction: column; gap: 4px; }
+.now-next-item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease;
+}
+.now-next-item:hover { background: color-mix(in srgb, var(--panel) 80%, transparent); }
+.now-next-thumb {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  color: var(--muted);
+}
+.now-next-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.now-next-play { display: flex; justify-content: center; color: var(--muted); }
+.now-next-item:hover .now-next-play { color: var(--text); }
+.now-empty { padding: 26px 20px; font-size: 13.5px; line-height: 1.6; }
+
+/* --- paroles : bloc défilant sous la pochette ----------------------------- */
+.lyrics { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.lyrics-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lyrics-hint { font-size: 10.5px; color: var(--muted); }
+
+.lyrics-box {
+  position: relative;
+  max-height: 176px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  scrollbar-width: none;
+  mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 16px), transparent);
+}
+.lyrics-box::-webkit-scrollbar { display: none; }
+.lyrics-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.lyrics-line {
+  display: block;
+  padding: 3px 0;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  transition: color var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
+}
+.lyrics-line.past { color: color-mix(in srgb, var(--muted) 65%, transparent); }
+.lyrics-line.active { color: var(--text); font-weight: 700; transform: translateX(2px); }
+.lyrics-line[role='button'] { cursor: pointer; }
+.lyrics-line[role='button']:hover { color: var(--text); }
+
+.lyrics-plain {
+  margin: 0;
+  white-space: pre-line;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.lyrics-message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.lyrics-message span { display: inline-flex; align-items: center; gap: 6px; }
+.lyrics-skeleton { display: block; width: 100%; height: 11px; margin: 7px 0; }
+.lyrics-skeleton.short { width: 62%; }
+
+/* --- égaliseur : panneau flottant au-dessus du lecteur -------------------- */
+.eq-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 96px;
+  z-index: 60;
+  width: min(460px, calc(100vw - 24px));
+  max-height: min(76vh, 660px);
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px 18px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  animation: riseIn var(--dur-med) var(--ease-out) both;
+}
+
+.eq-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.eq-head h2 { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+.eq-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 340px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eq-viz-wrap {
+  height: 96px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+}
+.eq-viz { display: block; width: 100%; height: 100%; color: var(--accent); }
+
+.eq-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.eq-toolbar .btn { padding: 6px 11px; font-size: 12.5px; gap: 6px; }
+
+/* interrupteur */
+.eq-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.eq-switch:hover { background: var(--panel); }
+.eq-switch.on { color: var(--text); }
+.eq-switch-track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--panel-hover);
+  transition: background var(--dur-fast) ease;
+}
+.eq-switch.on .eq-switch-track { background: var(--accent); }
+.eq-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast) ease;
+}
+.eq-switch.on .eq-switch-thumb { transform: translateX(16px); background: var(--accent-text); }
+
+/* Les 8 presets tiennent sur deux lignes : pas de défilement horizontal ici. */
+.eq-presets {
+  flex-wrap: wrap;
+  overflow: visible;
+  gap: 6px;
+  padding-bottom: 0;
+  mask-image: none;
+}
+.eq-presets .chip { font-size: 12px; padding: 6px 12px; }
+
+/* bandes : 10 curseurs verticaux */
+.eq-bands {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 4px;
+  align-items: end;
+  padding: 4px 2px 0;
+  transition: opacity var(--dur-fast) ease;
+}
+.eq-bands.is-off { opacity: 0.55; }
+.eq-band { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.eq-db {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  transition: color var(--dur-fast) ease;
+}
+.eq-bands:not(.is-off) .eq-db { color: var(--text); }
+.eq-hz { font-size: 10px; color: var(--muted); white-space: nowrap; }
+
+/* Curseur vertical : une piste horizontale pivotée de −90° (max en haut),
+   remplie depuis le centre, donc lisible pour un réglage bipolaire. */
+.eq-rail { position: relative; display: block; width: 22px; height: 118px; }
+.eq-slider {
+  --eq-track: color-mix(in srgb, var(--text) 15%, transparent);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 118px;
+  height: 22px;
+  margin: 0;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.eq-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    var(--eq-track) 0 var(--eq-a),
+    var(--accent) var(--eq-a) var(--eq-b),
+    var(--eq-track) var(--eq-b) 100%
+  );
+}
+.eq-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--bg-elev);
+  box-shadow: var(--shadow-1);
+}
+.eq-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    var(--eq-track) 0 var(--eq-a),
+    var(--accent) var(--eq-a) var(--eq-b),
+    var(--eq-track) var(--eq-b) 100%
+  );
+}
+.eq-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--bg-elev);
+}
+.eq-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
+
+.eq-note { margin: 0; font-size: 11.5px; line-height: 1.5; }
+
+@media (max-width: 720px) {
+  .eq-panel {
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 86vh;
+    border-radius: 14px 14px 0 0;
+  }
+  .eq-slider { height: 96px; }
+}
+
+/* --- mouvement réduit : aucune de ces transitions ne s'exécute --- */
+@media (prefers-reduced-motion: reduce) {
+  .card:hover, .card:active, .chip:hover, .play-btn:hover { transform: none !important; }
+  .skeleton { animation: none; }
+}
+
+/* ================================================================
+   Téléphone : la place est comptée — la colonne d'icônes se resserre et la
+   ligne d'un titre garde son titre lisible (durée masquée, écarts réduits).
+   ================================================================ */
+@media (max-width: 640px) {
+  .app { grid-template-columns: 64px 1fr; }
+  .sidebar { padding: 10px 4px; }
+  .side-link { padding: 11px 4px; }
+  .content { padding: 8px 12px 28px; }
+
+  .track-row {
+    grid-template-columns: 26px 40px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 7px 8px;
+  }
+  .row-end { min-width: 58px; }
+  .row-cover .cover { width: 38px; height: 38px; }
+  /* Durée et like restent accessibles ailleurs (vue grand format, barre de
+     lecture) ; ici, chaque pixel rendu au titre vaut mieux. */
+  .row-duration { display: none; }
+}
+
+/* ================================================================
+   v1.4 — palette de commandes (⌘K)
+   Un seul champ pour chercher et lancer : titres, albums, artistes,
+   playlists, fichiers locaux et raccourcis de navigation.
+   ================================================================ */
+
+.palette-open {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 8px 6px 10px; border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted); font-size: 12px; font-weight: 700;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+.palette-open:hover { color: var(--text); background: var(--panel); border-color: var(--muted); }
+.palette-open svg { flex: none; }
+
+.kbd {
+  display: inline-block;
+  padding: 3px 5px; border-radius: 5px;
+  font: inherit; font-size: 10.5px; font-weight: 700; line-height: 1;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.palette-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  border: 0; background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  animation: fadeIn var(--dur-fast) ease both;
+}
+
+.palette {
+  position: fixed; z-index: 91;
+  top: max(11vh, 64px); left: 50%;
+  transform: translateX(-50%);
+  width: min(660px, calc(100vw - 24px));
+  max-height: min(70vh, 640px);
+  display: flex; flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  animation: paletteIn 0.18s var(--ease-out) both;
+}
+@keyframes paletteIn {
+  from { opacity: 0; transform: translate(-50%, -8px) scale(0.99); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.palette-field {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.palette-field-icon { display: flex; color: var(--muted); }
+.palette-input {
+  flex: 1; min-width: 0;
+  background: transparent; border: 0; outline: none;
+  color: var(--text); font-size: 15px;
+}
+.palette-input::placeholder { color: var(--muted); }
+.palette-close { display: none; flex: none; }
+
+.palette-list {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 6px 6px 10px;
+  overscroll-behavior: contain;
+}
+.palette-group {
+  position: sticky; top: 0; z-index: 1;
+  padding: 10px 10px 6px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--muted);
+  background: var(--bg-elev);
+}
+
+.palette-item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center; gap: 10px;
+  width: 100%; padding: 7px 10px;
+  border-radius: var(--r-md);
+  text-align: left;
+}
+.palette-item.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.palette-item.active .palette-label { color: var(--accent); }
+.palette-thumb {
+  width: 38px; height: 38px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm);
+  background: var(--panel); color: var(--muted);
+  overflow: hidden;
+}
+.palette-thumb.round { border-radius: 50%; }
+.palette-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.palette-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.palette-label {
+  font-size: 14px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.palette-detail {
+  font-size: 12px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.palette-tag {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--accent);
+}
+
+.palette-status {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; font-size: 12.5px; color: var(--muted);
+}
+.palette-status .spinner { flex: none; }
+.palette-empty { padding: 16px 14px; font-size: 13px; }
+.palette-empty p { margin: 0 0 6px; }
+.palette-note { margin: 8px 10px 4px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+
+.palette-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--muted);
+}
+.palette-foot .kbd { margin-right: 2px; }
+
+@media (max-width: 1180px) {
+  .palette-open-label { display: none; }
+}
+@media (max-width: 640px) {
+  .palette {
+    top: 8px; width: calc(100vw - 16px);
+    max-height: calc(100vh - 130px);
+  }
+  /* Le champ de recherche est déjà à portée de pouce : la pastille ⌘K
+     ferait doublon et volerait la largeur utile du champ. */
+  .palette-open { display: none; }
+  .palette-open .kbd { display: none; }
+  .palette-field .kbd { display: none; }
+  .palette-close { display: inline-flex; }
+  .palette-foot { display: none; }
+}
+
+/* Un titre sans extrait reste visible (on sait ce que le catalogue contient)
+   mais grisé, avec son étiquette « Sans extrait ». */
+.palette-item.unplayable .palette-thumb,
+.palette-item.unplayable .palette-label {
+  opacity: 0.55;
+}
+.palette-tag.muted {
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ================================================================
+   v1.5 — accessibilité et finitions de mise en page
+   ================================================================ */
+
+/* Lien d'évitement : premier élément focusable, visible seulement au clavier. */
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 120;
+  transform: translateY(-160%);
+  padding: 10px 16px; border-radius: 8px;
+  background: var(--accent); color: var(--accent-text);
+  font-size: 13px; font-weight: 800;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.skip-link:focus { transform: none; }
+.content:focus { outline: none; }
+
+/* Les actions de section (« Tout afficher ») ne se coupent jamais en deux. */
+.section-title .link-btn,
+.section-title .see-all { white-space: nowrap; }
+.section-title { gap: 12px; }
+
+/* Sur grand écran, toutes les pastilles de genre restent visibles : le
+   défilement horizontal masquait « Latino » sans aucune indication. */
+@media (min-width: 961px) {
+  .chipbar {
+    flex-wrap: wrap;
+    overflow: visible;
+    mask-image: none;
+  }
+}
+
+/* --- page 404 : un vrai écran d'atterrissage, pas une impasse --------------- */
+.not-found {
+  max-width: 640px;
+  margin: 10vh auto;
+  padding: 24px;
+  text-align: center;
+}
+.not-found-code {
+  display: block;
+  font-size: 92px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: var(--accent);
+}
+.not-found h1 { font-size: 30px; margin: 10px 0 8px; letter-spacing: -0.02em; }
+.not-found p { max-width: 460px; margin: 0 auto 22px; line-height: 1.6; }
+.not-found-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+/* --- bibliothèque vide : trois portes d'entrée claires --------------------- */
+.library-sub { margin: 6px 0 0; font-size: 13px; max-width: 640px; }
+.onboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 6px;
+}
+.onboard-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px;
+  min-height: 210px;
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-med) var(--ease-out),
+    border-color var(--dur-med) ease, box-shadow var(--dur-med) ease;
+}
+.onboard-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: var(--shadow-2);
+}
+.onboard-icon {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.onboard-card strong { font-size: 16px; letter-spacing: -0.01em; }
+.onboard-card .muted { font-size: 13px; line-height: 1.5; }
+.onboard-cta {
+  margin-top: auto;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12.5px; font-weight: 800; color: var(--accent);
+}
+.onboard-form { cursor: default; }
+.onboard-form:hover { transform: none; border-color: var(--border); box-shadow: var(--shadow-1); }
+.onboard-row { display: flex; gap: 8px; margin-top: auto; }
+.onboard-row .text-input { min-width: 0; width: 100%; }
+.onboard-row .btn { flex: none; padding: 8px 14px; }
+
+/* Le formulaire de création vit maintenant dans l'en-tête de la section. */
+.section-title { flex-wrap: wrap; }
+.section-title .pl-form { align-items: center; }
+.section-title .pl-form .text-input { min-width: 170px; padding: 6px 10px; font-size: 13px; }
+.section-title .pl-form .btn { padding: 7px 13px; font-size: 13px; }
+
+/* --- artistes sans photo : initiale sur dégradé stable --------------------- */
+.artist-fallback {
+  font-size: clamp(32px, 4vw, 54px);
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* --- musique locale vide : ce que l'import apporte ------------------------- */
+.local-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-top: 6px;
+}
+.local-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 18px;
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+.local-feature-icon {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+.local-feature strong { font-size: 14.5px; }
+.local-feature .muted { font-size: 12.5px; line-height: 1.5; }
+.local-feature-note { grid-column: 1 / -1; text-align: center; font-size: 12.5px; margin: 4px 0 0; }
+
+/* Les cartes d'artiste centrent leur contenu : sans largeur explicite, la
+   pochette de repli (initiale) se réduisait à la largeur de la lettre. */
+.artist-card .card-media { width: 100%; }
+
+/* Un bouton accent désactivé ne doit pas ressembler à une action disponible. */
+.btn.accent:disabled {
+  background: var(--panel);
+  color: var(--muted);
+  opacity: 1;
+}
+html[data-theme='light'] .btn.accent:disabled { background: #e4e4e4; color: #6b6b6b; }
+
+/* Palette : initiale d'artiste sur dégradé + fondu du dernier résultat. */
+.palette-initial { color: #fff; font-weight: 800; font-size: 15px; }
+.palette-list { mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent); }
+
+/* Téléphone : le titre de section et « Tout afficher » tiennent sur une ligne. */
+@media (max-width: 640px) {
+  .section-title h2 { font-size: 19px; }
+  .section-title { gap: 8px; }
+}
+
+@media (max-width: 640px) {
+  /* Une seule ligne pour les titres de section (hors formulaires) : le titre
+     se tronque plutôt que de pousser « Tout afficher » à la ligne suivante. */
+  .section-title:not(:has(.pl-form)) { flex-wrap: nowrap; gap: 6px; }
+  .section-title:not(:has(.pl-form)) h2 {
+    font-size: 17px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .section-title .link-btn { flex: none; font-size: 12px; }
 }

@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import SearchPage from './pages/SearchPage';
@@ -32,5 +32,24 @@ export default function App() {
 }
 
 function NotFound() {
-  return <div className="empty-note">Page introuvable — retournez à l'accueil.</div>;
+  return (
+    <div className="not-found">
+      <span className="not-found-code" aria-hidden>
+        404
+      </span>
+      <h1>Cette page n’existe pas</h1>
+      <p className="muted">
+        Le lien est peut-être obsolète, ou la page a été déplacée. En attendant, la musique
+        n’est pas loin.
+      </p>
+      <div className="not-found-actions">
+        <Link className="btn accent" to="/">
+          Retour à l’accueil
+        </Link>
+        <Link className="btn ghost" to="/search">
+          Chercher un titre
+        </Link>
+      </div>
+    </div>
+  );
 }

@@ -274,10 +274,39 @@ function id3TagSize(header: Uint8Array): number {
 }
 
 /**
- * Tags d'un fichier, sans lire plus que nécessaire : l'en-tête ID3 donne la
- * taille exacte du tag, un FLAC se contente de ses premiers 64 Ko, et les
- * autres formats des 128 derniers octets (ID3v1). Le décodage est confié au
- * noyau Rust/WASM quand il est disponible, sinon aux parseurs JavaScript.
+ * Plan de lecture des tags : combien d'octets lire, et où.
+ *
+ * C'est ce plan — et non une heuristique au moment de l'import — qui garantit
+ * qu'un fichier de 1,5 Mo ne coûte pas 1,5 Mo de lecture : en-tête ID3 de
+ * 10 octets pour connaître la taille exacte du tag, 64 Ko pour un FLAC,
+ * 128 derniers octets pour ID3v1.
+ */
+export interface TagReadPlan {
+  format: 'id3v2' | 'flac' | 'id3v1' | 'none';
+  /** octets à lire (depuis le début, ou depuis la fin pour `id3v1`) */
+  bytes: number;
+}
+
+export function tagReadPlan(header: Uint8Array, fileSize: number): TagReadPlan {
+  // ID3v2 : « ID3 » + taille du tag (7 bits par octet) dans l'en-tête.
+  if (header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) {
+    const size = id3TagSize(header);
+    if (size <= 0 || size > MAX_ID3_TAG_BYTES) return { format: 'none', bytes: 0 };
+    return { format: 'id3v2', bytes: Math.min(fileSize, 10 + size) };
+  }
+
+  if (header[0] === 0x66 && header[1] === 0x4c && header[2] === 0x61 && header[3] === 0x43) {
+    return { format: 'flac', bytes: Math.min(fileSize, FLAC_SCAN_BYTES) };
+  }
+
+  if (fileSize > 128) return { format: 'id3v1', bytes: 128 };
+  return { format: 'none', bytes: 0 };
+}
+
+/**
+ * Tags d'un fichier, sans lire plus que nécessaire — voir `tagReadPlan`. Le
+ * décodage est confié au noyau Rust/WASM quand il est disponible, sinon aux
+ * parseurs JavaScript.
  */
 async function readAudioTags(file: File): Promise<AudioTags> {
   try {
@@ -285,32 +314,20 @@ async function readAudioTags(file: File): Promise<AudioTags> {
     const header = new Uint8Array(
       await file.slice(0, Math.min(file.size, 10)).arrayBuffer()
     );
-
-    // ID3v2 : « ID3 » + taille du tag (7 bits par octet).
-    if (header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) {
-      const size = id3TagSize(header);
-      if (size <= 0 || size > MAX_ID3_TAG_BYTES) return {};
-      const tag = new Uint8Array(
-        await file.slice(0, Math.min(file.size, 10 + size)).arrayBuffer()
-      );
-      if (core) return tagsFromCore(core.parseTags(tag));
-      return parseId3v2(tag) ?? {};
-    }
+    const plan = tagReadPlan(header, file.size);
 
     // FLAC : commentaires Vorbis (le noyau Rust est seul à les lire).
-    if (header[0] === 0x66 && header[1] === 0x4c && header[2] === 0x61 && header[3] === 0x43) {
-      if (!core) return {};
-      const head = new Uint8Array(
-        await file.slice(0, Math.min(file.size, FLAC_SCAN_BYTES)).arrayBuffer()
-      );
-      return tagsFromCore(core.parseTags(head));
-    }
+    if (plan.format === 'flac' && !core) return {};
+    if (plan.format === 'none') return {};
 
-    if (file.size > 128) {
-      const tail = new Uint8Array(await file.slice(file.size - 128).arrayBuffer());
-      if (core) return tagsFromCore(core.parseTags(tail));
-      return parseId3v1(tail) ?? {};
-    }
+    const buffer =
+      plan.format === 'id3v1'
+        ? new Uint8Array(await file.slice(file.size - 128).arrayBuffer())
+        : new Uint8Array(await file.slice(0, plan.bytes).arrayBuffer());
+
+    if (core) return tagsFromCore(core.parseTags(buffer));
+    if (plan.format === 'id3v2') return parseId3v2(buffer) ?? {};
+    return parseId3v1(buffer) ?? {};
   } catch {
     // fichier illisible : on retombe sur le nom
   }

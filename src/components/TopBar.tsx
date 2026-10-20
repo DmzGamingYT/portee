@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSpotify } from '../spotifyStore';
 import { beginLogin, fetchProfileSafe, isConfigured, logout } from '../api/spotify';
 import { isConnected } from '../api/spotifyAuth';
@@ -19,10 +19,14 @@ import Icons from './icons';
  *
  * Si `VITE_SPOTIFY_CLIENT_ID` n'est pas configurée, le bouton reste visible
  * mais explique la configuration manquante au lieu d'échouer silencieusement.
+ *
+ * Le bouton ⌘K ouvre la palette de commandes (voir `CommandPalette`) : un seul
+ * champ pour chercher et lancer sans quitter le clavier.
  */
-export default function TopBar() {
+export default function TopBar({ onOpenPalette }: { onOpenPalette?: () => void }) {
   const [params] = useSearchParams();
   const nav = useNavigate();
+  const location = useLocation();
   const qParam = params.get('q') ?? '';
   const [q, setQ] = useState(qParam);
 
@@ -40,6 +44,19 @@ export default function TopBar() {
   useEffect(() => {
     setQ(qParam);
   }, [qParam]);
+
+  // Sur la page de recherche, la frappe filtre en direct (comme le grand
+  // champ) : le champ de la barre du haut n'est plus un simple formulaire à
+  // valider. Ailleurs, on attend ↵ pour ne pas quitter la page en cours.
+  useEffect(() => {
+    if (location.pathname !== '/search') return;
+    const timer = setTimeout(() => {
+      const trimmed = q.trim();
+      if (trimmed === qParam) return;
+      nav(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search', { replace: true });
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [q, qParam, location.pathname, nav]);
 
   const loadProfile = useCallback(async () => {
     const profile = await fetchProfileSafe();
@@ -101,6 +118,15 @@ export default function TopBar() {
     nav(q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : '/search');
   }
 
+  // Le libellé visible et le nom accessible restent identiques : un bouton
+  // dont le texte visible n'est pas contenu dans son `aria-label` est un
+  // échec WCAG 2.5.3 (et l'étiquette disparaît sur mobile).
+  const spotifyLabel = spBusy
+    ? 'Redirection vers Spotify…'
+    : configured
+      ? 'Se connecter avec Spotify'
+      : 'Connexion Spotify';
+
   const displayName = spProfile?.display_name || 'Compte Spotify';
   const avatar = spProfile?.images?.[0]?.url;
   const initials = displayName
@@ -121,7 +147,7 @@ export default function TopBar() {
         </button>
       </div>
 
-      <form className="search-pill" onSubmit={submit}>
+      <form className="search-pill" role="search" onSubmit={submit}>
         <input
           className="search-input"
           placeholder="Titre, artiste, album…"
@@ -135,6 +161,19 @@ export default function TopBar() {
       </form>
 
       <div className="topbar-right">
+        {onOpenPalette && (
+          <button
+            className="palette-open"
+            onClick={onOpenPalette}
+            title="Palette de commandes (⌘K)"
+            aria-label="Chercher ⌘K — palette de commandes"
+          >
+            {Icons.search(17)}
+            <span className="palette-open-label">Chercher</span>
+            <kbd className="kbd">⌘K</kbd>
+          </button>
+        )}
+
         {spConnected ? (
           <details className="menu account-menu" ref={menuRef}>
             <summary
@@ -180,12 +219,10 @@ export default function TopBar() {
                 ? 'Se connecter avec Spotify (e-mail, Google, Apple, Facebook…)'
                 : 'Connexion Spotify : VITE_SPOTIFY_CLIENT_ID manquante'
             }
-            aria-label="Se connecter avec Spotify"
+            aria-label={spotifyLabel}
           >
             {Icons.spotify(18)}
-            <span className="sp-label">
-              {spBusy ? 'Redirection vers Spotify…' : configured ? 'Se connecter avec Spotify' : 'Connexion Spotify'}
-            </span>
+            <span className="sp-label">{spotifyLabel}</span>
           </button>
         )}
       </div>

@@ -9,6 +9,8 @@ import { useStore, currentTrack } from '../../store';
 import { fmtClock } from '../../lib/format';
 import Icons from '../icons';
 import QueuePanel from './QueuePanel';
+import NowPlaying from './NowPlaying';
+import EqPanel from './EqPanel';
 
 export default function PlayerBar() {
   const track = useStore(currentTrack);
@@ -33,6 +35,8 @@ export default function PlayerBar() {
   const toggleMute = useStore((s) => s.toggleMute);
   const toggleShuffle = useStore((s) => s.toggleShuffle);
   const cycleRepeat = useStore((s) => s.cycleRepeat);
+  const radio = useStore((s) => s.radio);
+  const toggleRadio = useStore((s) => s.toggleRadio);
   const toggleLike = useStore((s) => s.toggleLike);
   const crossfade = useStore((s) => s.crossfade);
   const setCrossfade = useStore((s) => s.setCrossfade);
@@ -40,16 +44,59 @@ export default function PlayerBar() {
   const toggleHoverPreview = useStore((s) => s.toggleHoverPreview);
 
   const [queueOpen, setQueueOpen] = useState(false);
+  const [nowOpen, setNowOpen] = useState(false);
+  const [eqOpen, setEqOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
+  // La vue grand format s'ouvre d'elle-même au démarrage d'un titre ; une fois
+  // refermée à la main, elle ne se rouvre plus sans clic (sinon elle revient à
+  // chaque changement de piste, ce qui devient vite pénible).
+  const nowDismissed = useRef(false);
+  // Au montage on part de l'état courant : un rechargement de page avec une
+  // file déjà chargée ne doit pas rouvrir le panneau tout seul.
+  const lastTrackId = useRef<string | null>(track?.id ?? null);
+  const wasPlaying = useRef(playing);
+  const trackId = track?.id ?? null;
 
-  // Raccourci clavier : Échap ferme la file d'attente.
+  useEffect(() => {
+    const started = playing && !wasPlaying.current;
+    const changed = trackId !== null && trackId !== lastTrackId.current;
+    wasPlaying.current = playing;
+    if (!playing || !trackId) return;
+    lastTrackId.current = trackId;
+    if (!started && !changed) return;
+    if (nowDismissed.current) return;
+    setNowOpen(true);
+    setQueueOpen(false);
+    // L'égaliseur reste ouvert : c'est un réglage, pas une vue du titre.
+  }, [trackId, playing]);
+
+  function openNowPlaying() {
+    nowDismissed.current = false;
+    setQueueOpen(false);
+    setEqOpen(false);
+    setNowOpen(true);
+  }
+
+  function closeNowPlaying() {
+    nowDismissed.current = true;
+    setNowOpen(false);
+  }
+
+  // Raccourci clavier : Échap ferme les panneaux ouverts.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setQueueOpen(false);
+      if (e.key !== 'Escape') return;
+      // Un Échap qui ne fermait rien (menu, champ de recherche…) ne doit pas
+      // condamner la vue grand format pour le reste de la session : elle ne
+      // s'ouvrirait plus jamais au lancement d'un titre, sans rien expliquer.
+      if (nowOpen) nowDismissed.current = true;
+      setQueueOpen(false);
+      setNowOpen(false);
+      setEqOpen(false);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [nowOpen]);
 
   const isLiked = track ? liked.some((t) => t.id === track.id) : false;
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
@@ -76,11 +123,19 @@ export default function PlayerBar() {
       <div className="player-left">
         {track ? (
           <>
-            {track.cover ? (
-              <img className="player-cover" src={track.cover} alt="" />
-            ) : (
-              <div className="player-cover player-cover-fallback" aria-hidden />
-            )}
+            <button
+              className="player-cover-btn"
+              onClick={openNowPlaying}
+              title="Vue grand format"
+              aria-label={`Vue grand format : ${track.title}`}
+              aria-expanded={nowOpen}
+            >
+              {track.cover ? (
+                <img className="player-cover" src={track.cover} alt="" />
+              ) : (
+                <div className="player-cover player-cover-fallback" aria-hidden />
+              )}
+            </button>
             <figure className="player-meta">
               <figcaption className="player-title" title={track.title}>{track.title}</figcaption>
               <div className="player-artist-link">
@@ -150,6 +205,21 @@ export default function PlayerBar() {
           >
             {Icons.repeat(repeat === 'one')}
           </button>
+          <button
+            className={`icon-btn ${radio ? 'accent' : ''}`}
+            onClick={toggleRadio}
+            title={
+              radio
+                ? repeat === 'off'
+                  ? 'Radio continue activée — des titres proches prolongent la file'
+                  : 'Radio continue activée — en pause tant que la répétition est active'
+                : 'Activer la radio continue'
+            }
+            aria-label="Radio continue"
+            aria-pressed={radio}
+          >
+            {Icons.radio(20)}
+          </button>
         </div>
 
         <div className="progress-row">
@@ -188,11 +258,27 @@ export default function PlayerBar() {
         </div>
 
         <div className="player-context muted">
-          {queueLen > 0 ? `File : ${ctxName || 'Lecture en cours'} · ${queueLen} titre${queueLen > 1 ? 's' : ''}` : 'File vide'}
+          {queueLen > 0
+            ? `File : ${ctxName || 'Lecture en cours'} · ${queueLen} titre${queueLen > 1 ? 's' : ''}${
+                radio ? ' · radio' : ''
+              }`
+            : 'File vide'}
         </div>
       </div>
 
       <div className="player-right">
+        {/* vue grand format : pochette en grand, commandes, à suivre */}
+        <button
+          className={`icon-btn ${nowOpen ? 'accent' : ''}`}
+          onClick={() => (nowOpen ? closeNowPlaying() : openNowPlaying())}
+          title="Vue grand format"
+          aria-label="Vue grand format"
+          aria-expanded={nowOpen}
+          disabled={!track}
+        >
+          {Icons.chevronUp(20)}
+        </button>
+
         {/* aperçu au survol (opt-in) */}
         <button
           className={`icon-btn ${hoverPreview ? 'accent' : ''}`}
@@ -201,7 +287,7 @@ export default function PlayerBar() {
           aria-label="Aperçu au survol"
           aria-pressed={hoverPreview}
         >
-          {Icons.radio(20)}
+          {Icons.music(20)}
         </button>
 
         {/* fondu de début / fin d'extrait (0–8 s) */}
@@ -219,10 +305,29 @@ export default function PlayerBar() {
           <span className="crossfade-val">{crossfade}s</span>
         </label>
 
+        {/* égaliseur 10 bandes + visualiseur */}
+        <button
+          className={`icon-btn ${eqOpen ? 'accent' : ''}`}
+          onClick={() => {
+            setNowOpen(false);
+            setQueueOpen(false);
+            setEqOpen((o) => !o);
+          }}
+          title="Égaliseur et visualiseur"
+          aria-label="Égaliseur"
+          aria-expanded={eqOpen}
+        >
+          {Icons.eq(20)}
+        </button>
+
         {/* file d'attente */}
         <button
           className={`icon-btn ${queueOpen ? 'accent' : ''}`}
-          onClick={() => setQueueOpen((o) => !o)}
+          onClick={() => {
+            setNowOpen(false);
+            setEqOpen(false);
+            setQueueOpen((o) => !o);
+          }}
           title="File d'attente"
           aria-label="File d'attente"
           aria-expanded={queueOpen}
@@ -247,6 +352,8 @@ export default function PlayerBar() {
 
       </footer>
       {queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
+      {nowOpen && <NowPlaying onClose={closeNowPlaying} />}
+      {eqOpen && <EqPanel onClose={() => setEqOpen(false)} />}
     </>
   );
 }

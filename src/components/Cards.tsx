@@ -1,6 +1,7 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store';
+import { gradientOf } from '../lib/format';
 import type { Album, Artist, Track } from '../types';
 import Icons from './icons';
 
@@ -157,8 +158,15 @@ export function ArtistCard({ artist }: { artist: Artist }) {
         {artist.cover ? (
           <Cover src={artist.cover} alt={artist.name} className="round" />
         ) : (
-          <span className="cover cover-empty round" style={{ aspectRatio: '1/1' }}>
-            {Icons.person(34)}
+          // iTunes ne fournit pas de photo d'artiste : une initiale sur un
+          // dégradé stable est plus lisible (et moins triste) qu'un avatar
+          // générique identique pour tout le monde.
+          <span
+            className="cover cover-empty round artist-fallback"
+            style={{ aspectRatio: '1/1', background: gradientOf(artist.id) }}
+            aria-hidden
+          >
+            {artist.name.trim().charAt(0).toUpperCase() || Icons.person(34)}
           </span>
         )}
       </div>

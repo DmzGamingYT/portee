@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store';
 import { getLocalAudioUrl } from '../../lib/localLibrary';
+import { ensureAudioGraph, resumeAudioGraph } from '../../lib/audioGraph';
 
 /**
  * Moteur audio unique : un élément <audio> piloté par le store.
@@ -11,8 +12,10 @@ import { getLocalAudioUrl } from '../../lib/localLibrary';
  * - erreurs visibles et passage automatique au titre suivant.
  * - fichiers locaux : le blob IndexedDB est résolu à la demande en object URL.
  *
- * Pas de `crossOrigin` : inutile ici (aucun traitement Web Audio) et cela
- * évite de bloquer des extraits dont le CDN ne renvoie pas d'en-tête CORS.
+ * `crossOrigin="anonymous"` est indispensable : sans lui, un extrait distant
+ * passé dans le Web Audio (égaliseur, analyseur) serait rendu muet par le
+ * navigateur. Le CDN d'extraits iTunes autorise le CORS, et les fichiers
+ * locaux sont des blobs de même origine.
  */
 export default function AudioEngine() {
   const ref = useAudioEngine();
@@ -29,6 +32,8 @@ function useAudioEngine(): React.RefObject<HTMLAudioElement> {
   const muted = useStore((s) => s.muted);
   const pendingSeek = useStore((s) => s.pendingSeek);
   const crossfade = useStore((s) => s.crossfade);
+  const eqGains = useStore((s) => s.eqGains);
+  const eqEnabled = useStore((s) => s.eqEnabled);
   const track = index >= 0 && index < queue.length ? queue[index] : null;
   const trackId = track?.id ?? null;
   const preview = track?.preview ?? null;
@@ -55,10 +60,21 @@ function useAudioEngine(): React.RefObject<HTMLAudioElement> {
     const audio = audioRef.current;
     if (!audio) return;
     audio.preload = 'auto';
+    // Doit être posé avant toute affectation de `src`.
+    audio.crossOrigin = 'anonymous';
     const s = useStore.getState();
     audio.volume = s.muted ? 0 : s.volume;
     audio.muted = s.muted;
   }, []);
+
+  // 0 bis) Graphe Web Audio : égaliseur 10 bandes + analyseur, créés une fois.
+  // Le graphe est partagé (un seul `createMediaElementSource` possible) et
+  // reste neutre tant que l'égaliseur est plat ou désactivé.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    ensureAudioGraph(audio)?.applyEq(eqGains, eqEnabled);
+  }, [eqGains, eqEnabled]);
 
   // 1) Résolution de la source : extrait distant ou blob local (asynchrone).
   // On coupe immédiatement l'ancienne source dès le changement de piste pour
@@ -177,6 +193,8 @@ function useAudioEngine(): React.RefObject<HTMLAudioElement> {
     }
 
     const expectedTrackId = trackId;
+    // Le contexte naît suspendu : un geste (ce clic de lecture) le réveille.
+    resumeAudioGraph();
     void audio
       .play()
       .then(() => {

@@ -1,222 +1,212 @@
-# SpotifyCraft
+<div align="center">
 
-Clone open-source d'interface musicale type Spotify : recherche, albums, artistes,
-playlists, likes, historique, file d'attente et lecteur audio — dans le même esprit
-que TubeCraft, appliqué à la musique.
+# 🎧 SpotifyCraft
 
-L'application **ne dépend d'aucune clé API** : elle interroge l'API publique iTunes
-via un proxy local et lit les **extraits officiels de 30 s** fournis par cette API.
-Les métadonnées (titres, artistes, albums, pochettes, durées) sont de vraies données
-musicales. La **seule authentification** passe par Spotify (OAuth PKCE, sans
-secret) : l'application n'a ni compte local ni mot de passe, et redirige vers la
-page officielle de Spotify où l'utilisateur choisit la méthode proposée par
-Spotify (e-mail, Google, Apple, Facebook, code par SMS…). Une fois connecté, les
-métadonnées viennent de Spotify et les extraits manquants d'iTunes.
+**Un lecteur musical open-source façon Spotify — recherche, albums, artistes, playlists, file d'attente, paroles et extraits officiels. Aucune clé API, aucun compte obligatoire.**
 
-Une **bibliothèque audio locale** complète le catalogue de découverte : glissez
-des fichiers MP3, M4A, FLAC, WAV, OGG ou OPUS n'importe où dans l'application pour
-les importer dans IndexedDB et les écouter **en entier**, sans serveur ni envoi de
-fichier. Le décodage des tags et des pochettes intégrées est confié à un noyau
-**Rust → WebAssembly** (`crates/import-core`), avec repli JavaScript.
+[![CI](https://github.com/DmzGamingYT/spotifycraft/actions/workflows/ci.yml/badge.svg)](https://github.com/DmzGamingYT/spotifycraft/actions/workflows/ci.yml)
+[![Licence MIT](https://img.shields.io/badge/licence-MIT-1db954.svg)](LICENSE)
+[![React 18](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
+[![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)](https://www.typescriptlang.org)
+[![Vite 8](https://img.shields.io/badge/Vite-8-646cff.svg)](https://vite.dev)
+[![Rust → WASM](https://img.shields.io/badge/Rust-%E2%86%92%20WASM-b7410e.svg)](crates/import-core)
+![Sans clé API](https://img.shields.io/badge/API%20key-none-1db954.svg)
 
-Des **Daily Mix personnalisés** sont calculés à partir des likes, de l'historique,
-des playlists et des genres — sans backend, sans profil envoyé nulle part : le plan
-du jour est stable et déterministe, et le catalogue n'est interrogé que pour
-résoudre les sélections.
+[Fonctionnalités](#-fonctionnalités) · [Aperçu](#-aperçu) · [Démarrage](#-démarrage-rapide) · [Architecture](#-architecture) · [Qualité](#-qualité--tests)
 
-## Démarrage
+<img src="docs/screenshots/home.jpg" alt="Accueil de SpotifyCraft : raccourcis de playlists, écoutés récemment et Daily Mix" width="100%">
+
+<sub>Accueil — raccourcis de playlists, historique, Daily Mix personnalisés et étagères de genres.</sub>
+
+</div>
+
+---
+
+## ✨ Pourquoi SpotifyCraft ?
+
+Une interface de musique complète qui tourne **entièrement dans le navigateur** :
+
+- **Aucune clé API** : le catalogue public iTunes fournit les métadonnées et les **extraits officiels de 30 s**.
+- **Aucun compte local** : la connexion, optionnelle, passe par **Spotify OAuth PKCE** (sans secret) pour enrichir les métadonnées.
+- **Vos fichiers, en entier** : glissez un dossier de MP3, FLAC, WAV, M4A, OGG ou OPUS — il est importé dans **IndexedDB** et lu sans serveur.
+- **Vos données restent chez vous** : likes, playlists, historique et mix sont stockés localement, jamais envoyés.
+
+## 🖼️ Aperçu
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/search.jpg" alt="Recherche de titres, albums et artistes" width="100%">
+      <sub><b>Recherche en direct</b> — titres, albums, artistes, durées toujours visibles et filtrage instantané.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/album.jpg" alt="Page album avec pochette, métadonnées et liste des pistes" width="100%">
+      <sub><b>Albums</b> — pochette, artiste cliquable, pistes, lecture en une puce et badge « extraits 30 s ».</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/nowplaying.jpg" alt="Vue grand format avec pochette, paroles synchronisées et commandes" width="100%">
+      <sub><b>Vue grand format</b> — pochette, paroles, progression, volume et « À suivre », fermable au glissement.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/queue.jpg" alt="File d'attente avec glisser-déposer" width="100%">
+      <sub><b>File d'attente</b> — glisser-déposer pour réordonner, retirer un titre, radio continue.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/palette.jpg" alt="Palette de commandes ⌘K avec résultats artistes et titres" width="100%">
+      <sub><b>Palette ⌘K</b> — tout chercher et tout lancer au clavier, sans quitter la page.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/daily.jpg" alt="Page Daily Mix personnalisée" width="100%">
+      <sub><b>Daily Mix</b> — sélections calculées localement à partir des likes, écoutes et genres.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/library.jpg" alt="Bibliothèque avec titres likés, historique et playlists" width="100%">
+      <sub><b>Bibliothèque</b> — likes, historique, artistes suivis et playlists persistants.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/mobile.png" alt="Version mobile de l'application" width="100%">
+      <sub><b>Mobile</b> — colonne d'icônes, barre de lecture compacte et panneaux plein écran.</sub>
+    </td>
+  </tr>
+</table>
+
+<div align="center">
+  <img src="docs/screenshots/light.jpg" alt="Thème clair de SpotifyCraft" width="100%">
+  <sub>Thème clair — l'application suit le système par défaut, ou se force en clair/sombre.</sub>
+</div>
+
+## 🚀 Fonctionnalités
+
+| | |
+| --- | --- |
+| **Accueil** | Salutation dynamique, raccourcis de playlists, « Écoutés récemment », Daily Mix, chips de genres et étagères Pop / Rock / Hip-Hop / Électro / Jazz / Chanson française. |
+| **Recherche** | Recherche **en direct** débouncée et annulable, titres + albums + artistes, badge de source, états vide/erreur/partiel distincts, URL propre. |
+| **Lecture** | Lecture/pause, précédent/suivant, aléatoire, répétition, progression cliquable **et clavier**, volume, mute, fondu et **radio continue** en fin de file. |
+| **File d'attente** | Panneau dédié, piste en cours, titres à venir, **glisser-déposer**, retrait, « Lire ensuite » depuis le menu d'une ligne. |
+| **Vue grand format** | Panneau latéral avec pochette, halo flouté, paroles, progression écoulé/restant, volume, like, « À suivre ». Fermeture par Échap, fond, croix ou glissement. |
+| **Paroles** | Paroles officielles **LRCLIB** (sans clé) : horodatées et surlignées pour les fichiers complets, texte simple pour les extraits de 30 s. |
+| **Palette ⌘K** | Titres, albums, artistes, playlists, fichiers locaux et navigation ; filtrage instantané (accents/casse), flèches, Entrée, Échap. |
+| **Playlists** | Création, renommage, suppression, ajout via ⊕, lecture en une puce, retrait d'un titre et **export M3U** (VLC, foobar2000…). |
+| **Ma musique locale** | Glisser-déposer de fichiers **ou d'un dossier**, stockage IndexedDB, dédoublonnage, progression album par album, pochettes ID3/FLAC intégrées, lecture complète. |
+| **Daily Mix** | Profil de goût local (likes, écoutes, playlists, artistes suivis), plan **stable pour la journée**, recalcul manuel. |
+| **Bibliothèque** | Titres likés, historique réellement écouté, artistes suivis et playlists — le tout persisté en `localStorage`. |
+| **Thème & accessibilité** | Thème système par défaut (ou clair/sombre), focus visible, pièges à focus, libellés ARIA, contrastes, `prefers-reduced-motion`, lien d'évitement. |
+| **Lecteur avancé** | **Égaliseur 10 bandes** + presets, visualiseur audio, MediaSession (écran verrouillé, casque), raccourcis `Espace` `←/→` `Maj+←/→` `M` `S` `R`. |
+
+## ⚡ Démarrage rapide
 
 Prérequis : **Node.js ≥ 20.19** (ou ≥ 22.12 pour Vite 8).
 
 ```bash
-npm install
+git clone https://github.com/DmzGamingYT/spotifycraft.git
+cd spotifycraft
+npm ci
 npm run dev        # http://127.0.0.1:5184
 ```
 
 Sur macOS, vous pouvez aussi **double-cliquer sur `Démarrer SpotifyCraft.command`**.
 
-Le noyau d'import Rust est fourni **précompilé** dans `src/wasm/import-core`
-(~45 Ko) : aucun outillage Rust n'est nécessaire pour lancer l'application ni
-pour la construire. Pour le reconstruire après une modification du crate :
+Le noyau d'import Rust est fourni **précompilé** (~45 Ko) dans `src/wasm/import-core` :
+aucun outillage Rust n'est nécessaire pour lancer ou construire l'application.
 
-```bash
-rustup target add wasm32-unknown-unknown
-cargo install wasm-pack        # ou binaire précompilé de wasm-pack
-npm run wasm:build
-```
+### Connexion Spotify (optionnelle)
+
+1. Créez une application sur <https://developer.spotify.com/dashboard>.
+2. Déclarez l'URL de redirection exacte `http://127.0.0.1:5184/callback`
+   (et `http://127.0.0.1:5185/callback` pour `npm run preview`).
+3. Renseignez `VITE_SPOTIFY_CLIENT_ID` dans `.env`, puis relancez `npm run dev`.
+
+Le flux est **Authorization Code + PKCE** : aucun `client_secret` côté navigateur,
+`state` OAuth vérifié, scopes en lecture seule, jetons purgés à la déconnexion.
+Sans identifiant, l'application reste pleinement utilisable avec le catalogue iTunes.
+
+> **Extraits Spotify** — depuis fin 2024, Spotify ne garantit plus `preview_url` aux
+> nouvelles applications. SpotifyCraft garde Spotify pour les métadonnées et
+> **complète les extraits manquants avec iTunes**. Si rien n'est trouvé, les titres
+> iTunes prennent le relais pour que la lecture reste possible.
+
+## 🎚️ Commandes
 
 | Commande | Rôle |
 | --- | --- |
 | `npm run dev` | serveur de développement + proxies iTunes/Spotify |
 | `npm run typecheck` | vérification TypeScript stricte |
-| `npm test` | tests unitaires (Vitest) |
+| `npm test` | tests unitaires (Vitest), benchmark du noyau inclus |
+| `npm run bench` | benchmark détaillé du noyau WASM (temps par fichier) |
+| `npm run wasm:build` | reconstruit le paquet WASM + cachet d'intégrité |
+| `npm run wasm:check` | échoue si le paquet WASM versionné est périmé |
+| `npm run wasm:verify` | reconstruit avec wasm-pack puis compare au paquet versionné |
 | `npm run build` | build de production dans `dist/` |
 | `npm run preview` | sert `dist/` sur `:5185` (proxies actifs) |
 
-## Fonctionnalités
-
-| Domaine | Détail |
-| --- | --- |
-| Accueil | Salutation dynamique, raccourcis playlists, « Écoutés récemment », chips de genres (dont **Tous**), étagères Pop / Rock / Hip-Hop / Électro / Jazz / Chanson française, artiste du jour |
-| Recherche | Recherche **en direct** débouncée et annulable, titres + albums + artistes, badge de source (Spotify / iTunes, provenance des extraits), états vide/erreur/recherche partielle distincts, URL propre (pas d'entrée d'historique par frappe) |
-| Lecture | Lecteur réel en bas de page : lecture/pause, précédent/suivant, aléatoire, répétition (hors/tout/un), progression cliquable **et navigable au clavier**, volume, mute, **fondu** de début/fin d'extrait |
-| File d'attente | Panneau dédié (desktop et mobile), piste en cours, titres à venir, **glisser-déposer** pour réordonner, retrait d'un titre, « Lire ensuite » / « Ajouter à la file » depuis le menu d'une ligne |
-| Système | **MediaSession** (touches média, casque, écran verrouillé), raccourcis clavier (`Espace`, `←/→`, `Maj+←/→`, `M`, `S`, `R`) |
-| Compte | **Connexion Spotify uniquement** (OAuth PKCE, aucun compte ni mot de passe local) : un clic ouvre la page de connexion Spotify, retour sur `/callback`, menu de compte (avatar, nom, e-mail, offre Premium/Free) et déconnexion ; tokens en `localStorage`, scopes lecture seule |
-| Albums | Page album : pochette, artiste cliquable, liste des pistes, lecture complète, durée totale, titre lisible |
-| Artistes | Titres populaires, albums, photo (Spotify), bouton « S'abonner » ; les artistes suivis apparaissent dans la bibliothèque |
-| Playlists | Création / renommage / suppression, ajout via le menu ⊕, lecture en une puce, retrait d'un titre |
-| Likés | Sélection automatique « Titres likés » lisible comme une playlist |
-| Historique | Alimenté uniquement quand un titre est **réellement audible**, page dédiée, lecture complète et effacement |
-| Bibliothèque | Titres likés, historique récent, artistes suivis, playlists — persistés en `localStorage` |
-| **Ma musique locale** | **Glisser-déposer** (fichiers **ou dossier entier**), sélection de fichiers ou de dossier, stockage IndexedDB (métadonnées + blobs séparés), **dédoublonnage automatique** (fichier déjà importé, copie dans la sélection, même titre sous un autre nom), **progression album par album** et **pochettes intégrées** (ID3 APIC, FLAC PICTURE) extraites automatiquement, avec bouton de récupération pour les fichiers déjà importés ; lecture complète dans le lecteur existant, filtrage, suppression unitaire ou totale ; compatible likes, playlists, historique et file d'attente |
-| **Daily Mix** | Sélections personnelles calculées **localement** : profil de goût (likes, écoutes, playlists, artistes suivis), familles de genres, mix « artiste » et « favoris » ; plan stable pour la journée, cache local, recalcul manuel, lecture complète depuis l'accueil ou la page dédiée |
-| Option | **Aperçu audio au survol** des lignes (désactivé par défaut, activable dans le lecteur) |
-| Thème | Jour/nuit **automatique** selon le système (`prefers-color-scheme`), aucune bascule manuelle ; responsive mobile/desktop, animations respectant `prefers-reduced-motion` |
-
-## Connexion Spotify (unique méthode de connexion)
-
-L'application ne crée **aucun compte local** et ne stocke **aucun mot de passe** :
-la connexion se fait exclusivement avec Spotify. Le bouton « Se connecter avec
-Spotify » ouvre la page officielle de Spotify, où l'utilisateur choisit la
-méthode que Spotify propose (e-mail + mot de passe, Google, Apple, Facebook,
-code par SMS…). Spotify redirecte ensuite l'utilisateur sur `/callback`, où
-l'application échange le code contre ses jetons.
-
-Côté **exploitant de l'application** (une seule fois) :
-
-1. Créez une application sur <https://developer.spotify.com/dashboard>.
-2. Déclarez l'URL de redirection exacte `http://127.0.0.1:5184/callback`
-   (et `http://127.0.0.1:5185/callback` pour `npm run preview` ; adaptez le port
-   si vous lancez le serveur ailleurs — le port doit correspondre **au caractère
-   près**, sinon Spotify refuse la connexion).
-3. Renseignez `VITE_SPOTIFY_CLIENT_ID` dans `.env`, puis relancez `npm run dev`.
-
-Sans `VITE_SPOTIFY_CLIENT_ID`, l'application reste pleinement utilisable avec le
-catalogue public iTunes, et le bouton Spotify explique la configuration
-manquante au lieu d'échouer silencieusement.
-
-Le flux est **Authorization Code + PKCE** : aucun `client_secret` n'est stocké
-côté navigateur, le `state` OAuth est vérifié au retour (protection CSRF), les
-scopes sont en lecture seule (`user-read-private`, `user-read-email`,
-`user-library-read`, `user-follow-read`, `playlist-read-private`,
-`playlist-read-collaborative`) et la déconnexion purge les jetons locaux.
-
-> **Important — extraits Spotify.** Depuis fin 2024, Spotify ne garantit plus
-> `preview_url` aux nouvelles applications. SpotifyCraft utilise donc Spotify
-> pour les métadonnées (pochettes, ids, liens) et **complète les extraits manquants
-> avec iTunes** (rapprochement titre + artiste). Si aucun extrait n'est trouvé,
-> les titres iTunes prennent le relais pour que la lecture reste possible.
-
-## Architecture
+## 🧱 Architecture
 
 ```
-vite.config.ts                 Vite 8 + plugin React + proxies
+vite.config.ts                 Vite 8 + React + proxies
 server/itunesProxy.ts          /it/api/search, /it/api/lookup (cache borné)
 server/spotifyProxy.ts         /sp/api/* (Bearer utilisateur, cache borné, no-store)
-crates/import-core/            noyau Rust → WASM : ID3v2/ID3v1, APIC, FLAC/Vorbis, PICTURE
+crates/import-core/            Rust → WASM : ID3v2/ID3v1, APIC, FLAC/Vorbis, PICTURE
 src/lib/audioCore.ts           chargement unique du WASM + repli JavaScript
 src/wasm/import-core/          paquet WASM généré (versionné)
 src/api/itunes.ts              client iTunes (proxy puis direct)
 src/api/spotify.ts             client Web API Spotify
 src/api/spotifyAuth.ts         PKCE, refresh token dédupliqué, state OAuth
-src/api/search.ts              recherche unifiée + hybridation des extraits + cache
-src/lib/queue.ts               logique pure de file (prochain titre, seek de départ…)
-src/lib/previewMatch.ts        rapprochement titre/artiste Spotify ↔ iTunes
-src/lib/tracks.ts              diversification des étagères
-src/lib/dailyMix.ts            profil de goût, familles de genres, plan et classement des Daily Mix
-src/lib/useDailyMixes.ts       chargement des mix + cache local du jour
-src/lib/id3.ts                 lecture des tags ID3v2/ID3v1 + nom de fichier
-src/lib/localLibrary.ts        IndexedDB (métadonnées + blobs), import album par album, suppression
-src/lib/importPlan.ts          dédoublonnage (fichier + titre) et regroupement par album
-src/lib/importFolder.ts        exploration récursive des dossiers déposés
-src/lib/coverArt.ts            pochettes intégrées (APIC / FLAC PICTURE) + vignettes
-src/lib/useLocalTracks.ts      liste locale réactive (import/suppression)
-src/lib/useKeyboardShortcuts.ts raccourcis globaux
-src/store.ts                   état persistant (lecteur, likes, playlists, historique)
-src/components/player/         AudioEngine, PlayerBar, QueuePanel
-src/components/GlobalDropTarget.tsx dépôt de fichiers global + retour visuel
-src/pages/                     Accueil, Recherche, Bibliothèque, Ma musique locale,
-                               Daily Mix, Playlist, Album, Artiste, Historique, Callback
+src/api/search.ts              recherche unifiée + hybridation des extraits
+src/api/lyrics.ts              paroles LRCLIB (fiche exacte puis recherche)
+src/lib/dailyMix.ts            profil de goût, familles de genres, plan du jour
+src/lib/localLibrary.ts        IndexedDB, import album par album, pochettes
+src/lib/radio.ts               radio continue : clés de doublon, sélection
+src/lib/equalizer.ts           presets et gains de l'égaliseur 10 bandes
+src/store.ts                   état persistant (lecteur, likes, playlists…)
+src/components/player/         AudioEngine, PlayerBar, QueuePanel, NowPlaying, EqPanel
+src/pages/                     Accueil, Recherche, Bibliothèque, Local, Daily Mix,
+                               Playlist, Album, Artiste, Historique, Callback
 ```
 
-### Pourquoi un proxy ?
+**Pourquoi un proxy ?** L'API iTunes ne renvoie pas d'en-têtes CORS fiables depuis
+un navigateur, et le proxy Spotify évite d'exposer les appels tout en gardant un
+cache court côté serveur. Pour un hébergement statique, exposez les mêmes routes
+via un petit service (Cloudflare Worker, Netlify/Vercel function) — le front ne change pas.
 
-L'API iTunes ne renvoie pas d'en-têtes CORS fiables depuis un navigateur, et le
-proxy Spotify évite d'exposer les appels et permet un cache court côté serveur.
-Pour un hébergement statique, exposez les mêmes routes via un petit service
-(Cloudflare Worker, Netlify/Vercel function) — le front ne change pas.
+## 🧪 Qualité & tests
 
-### Qualité
+- **CI GitHub Actions** : jobs `rust` (compilation wasm + `cargo test`), `wasm`
+  (reconstruction + comparaison au paquet versionné) et `app` (`npm ci` +
+  `npm run check` : typecheck, 159 tests, build).
+- **Benchmark** : le vrai `.wasm` est chargé et l'import doit rester sous
+  0,02 ms (petit tag) / 0,05 ms (tag de 120 Ko), 100 ms pour 300 fichiers, et
+  au moins **20× plus rapide** que le repli JavaScript.
+- **Tests unitaires** : file de lecture, rapprochement d'extraits, formats, tags
+  ID3, diversification, Daily Mix, radio, paroles, palette, égaliseur, M3U.
+- **Accessibilité** : audit axe-core sans violation sur les écrans principaux
+  (accueil, recherche, bibliothèque, local, mobile, lecture, file, palette).
+- Caches mémoire bornés, réponses personnelles en `Cache-Control: no-store`,
+  `ErrorBoundary` global, `prefers-reduced-motion` respecté.
 
-- TypeScript strict, aucun `any` dans les types publics.
-- Tests unitaires sur la file de lecture, le rapprochement des extraits, les
-  formats, les tags ID3, la diversification et la logique des Daily Mix
-  (profil, plan, classement déterministe) : `npm test`.
-- Noyau Rust testé séparément : `cd crates/import-core && cargo test`
-  (ID3v2/ID3v1, APIC recto, description UTF-16, commentaires Vorbis, PICTURE,
-  tampon tronqué).
-- Caches mémoire des proxys bornés (pas de fuite), tokens jamais utilisés comme
-  clés de cache, réponses personnelles en `Cache-Control: no-store`.
-- `ErrorBoundary` global : une erreur de rendu n'affiche plus une page blanche.
-- Accessibilité : focus visible, sliders clavier, libellés ARIA, `aria-live`
-  pour les erreurs, respect de `prefers-reduced-motion`.
+## ⚠️ Limites connues
 
-## Limites connues
+- Le catalogue en ligne reste limité aux **extraits officiels ~30 s** ; les
+  fichiers importés sont lus en entier.
+- Les pochettes intégrées sont extraites pour **MP3 (ID3v2 APIC)** et
+  **FLAC (PICTURE)** ; M4A, OGG/OPUS et WAV gardent le visuel généré.
+- IndexedDB est propre au navigateur et au profil : pas de synchronisation entre
+  appareils, et les fichiers peuvent être évincés si le quota est atteint.
+- Les jetons Spotify sont conservés en `localStorage` (standard SPA PKCE) :
+  une faille XSS les exposerait. Les scopes sont en lecture seule.
+- Projet indépendant, non affilié à Spotify / Apple. Les marques appartiennent à
+  leurs propriétaires.
 
-- Le catalogue en ligne reste limité aux **extraits officiels ~30 s** : pas de
-  rippers ni de filtres décryptés. Les **fichiers importés localement** sont lus en
-  entier.
-- Bibliothèque locale : les métadonnées sont lues pour les **MP3** (ID3v2/ID3v1) ;
-  pour les autres formats, le nom de fichier fait foi et la durée est lue par le
-  navigateur. Les pochettes intégrées ne sont pas extraites (une pochette dérivée
-  du titre est générée). La lecture dépend des codecs supportés par le navigateur
-  (FLAC/OPUS peuvent manquer sur certains systèmes).
-- Dédoublonnage : un fichier est reconnu par son **nom + sa taille**, un titre par
-  **artiste + album + durée à ±2 s**. Deux versions d'un même titre (live, remaster)
-  avec des durées différentes sont donc conservées ; un doublon exact n'est jamais
-  réimporté. Aucun hachage du contenu n'est calculé.
-- Le **dépôt direct d'un dossier** est exploré récursivement avec un garde-fou de
-  5 000 fichiers audio ; la sélection via « Importer un dossier » n'a pas cette
-  limite. Les gros dossiers affichent d'abord une phase « Analyse » (lecture des
-  tags) avant l'écriture album par album.
-- Pochettes : seuls **MP3 (frame ID3v2 APIC)** et **FLAC (bloc PICTURE)** sont
-  lus ; les images des M4A (`covr`), OGG/OPUS (`METADATA_BLOCK_PICTURE`) et WAV ne
-  sont pas extraites et gardent le visuel généré. Une image de plus de 8 Mo est
-  ignorée, et la vignette stockée est un JPEG carré de 240 px (recadré au centre)
-  pour ne pas gonfler IndexedDB ni `localStorage`.
-- Les listes qui gardent une copie du titre (likes, historique, playlists)
-  conservent la vignette d'origine ; la bibliothèque locale, elle, affiche
-  immédiatement la pochette extraite après « Récupérer les pochettes ».
-- Le noyau Rust/WASM est **optionnel** : si son chargement échoue (navigateur
-  sans WebAssembly, fichier absent), le repli JavaScript reprend la lecture des
-  tags et des pochettes MP3, mais pas les commentaires FLAC.
-- IndexedDB est propre au navigateur et au profil : les fichiers ne sont pas
-  synchronisés entre appareils et peuvent être évincés si le quota de stockage est
-  atteint (la persistance est demandée, sans garantie).
-- Le « fondu » est une enveloppe de volume en début/fin d'extrait, **sans
-  chevauchement** entre deux titres (une seule balise audio).
-- Les tokens Spotify sont conservés en `localStorage` (standard pour une SPA
-  PKCE) : une faille XSS les exposerait. Les scopes sont en lecture seule.
-- iTunes est une API d'Apple ; les champs peuvent évoluer — ajuster
-  `src/api/itunes.ts`.
-- Projet indépendant, non affilié à Spotify / Apple. Les noms et marques
-  appartiennent à leurs propriétaires.
-
-## Pistes pour aller plus loin
-
-- **Pochettes locales** : extraire la jaquette embarquée (ID3 APIC, FLAC PICTURE)
-  pour remplacer la pochette générée.
-- **Recommandations affinées** : passer du simple genre à la co-écoute (artistes
-  qui apparaissent ensemble dans l'historique) et à la similarité d'albums pour
-  des mix plus fins, toujours sans backend.
-- **PWA hors-ligne** : coquille en cache + reprise de la file au redémarrage.
-- **Déploiement** : Worker Cloudflare pour les deux proxies + assets statiques.
-- **Spotify Premium** : Web Playback SDK pour la lecture complète (compte Premium
-  requis), en complément des extraits.
-- **Collaboratif** : playlists partagées via un petit backend (D1 + auth).
-
-## Licence
+## 📄 Licence
 
 SpotifyCraft est publié sous licence [MIT](LICENSE) — libre à chacun d'utiliser,
 modifier et redistribuer.
+
+<div align="center">
+  <sub>Captures réalisées avec les données réelles du catalogue iTunes. Bonne écoute 🎶</sub>
+</div>

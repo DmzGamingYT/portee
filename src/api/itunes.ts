@@ -1,4 +1,5 @@
 import type { Album, Artist, Track } from '../types';
+import { normalizeText } from '../lib/previewMatch';
 
 /**
  * Client de l'API publique iTunes.
@@ -123,6 +124,34 @@ async function fetchJson(url: string, signal: AbortSignal): Promise<any> {
 }
 
 /**
+ * iTunes renvoie des artistes « proches » même quand le nom ne correspond pas
+ * à la recherche (« daft punk » → blink-182, Lil Nas X…). On garde donc les
+ * correspondances de nom en priorité et on écarte le bruit dès qu'au moins
+ * une correspondance existe ; sans aucune correspondance (recherche par
+ * titre, par genre…), on conserve la liste d'Apple telle quelle.
+ */
+function rankArtists(artists: Artist[], term: string): Artist[] {
+  const q = normalizeText(term);
+  const tokens = q.split(/[^a-z0-9]+/).filter((token) => token.length > 1);
+  if (!q || tokens.length === 0) return artists;
+
+  const score = (name: string): number => {
+    const n = normalizeText(name);
+    if (n === q || n.includes(q)) return 0;
+    if (tokens.some((token) => n.includes(token))) return 1;
+    return 2;
+  };
+
+  const scored = artists.map((artist, index) => ({ artist, index, rank: score(artist.name) }));
+  if (!scored.some((entry) => entry.rank < 2)) return artists;
+
+  return scored
+    .filter((entry) => entry.rank < 2)
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((entry) => entry.artist);
+}
+
+/**
  * Interroge `search` ou `lookup` via le proxy local puis en direct.
  * Lève `AbortError` si `signal` est annulé, sinon lève l'erreur réseau/HTTP.
  */
@@ -222,7 +251,7 @@ export async function searchArtists(
         name: String(r.artistName ?? ''),
         genre: typeof r.primaryGenreName === 'string' ? r.primaryGenreName : undefined,
       }));
-    return { artists, live: true };
+    return { artists: rankArtists(artists, q), live: true };
   } catch (err) {
     if (isAbort(err) || signal?.aborted) throw err;
     return { artists: [], live: false };

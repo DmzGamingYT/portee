@@ -7,18 +7,23 @@
     <meta name="theme-color" content="#121212" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <script>
-      // Thème automatique jour/nuit, sans bascule ni icône : appliqué avant la
-      // peinture pour éviter tout flash, puis repris par `useAutoTheme`.
+      // Thème appliqué avant la peinture, pour éviter tout flash clair/sombre :
+      // on relit ici le mode mémorisé par les préférences (« suivre le
+      // système » par défaut), puis `useAutoTheme` prend le relais — y compris
+      // pour les changements de réglage du système.
       (function () {
-        var media = window.matchMedia('(prefers-color-scheme: light)');
-        var apply = function () {
-          var theme = media.matches ? 'light' : 'dark';
-          document.documentElement.dataset.theme = theme;
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', theme === 'light' ? '#f6f6f6' : '#121212');
-        };
-        apply();
-        media.addEventListener('change', apply);
+        var mode = 'auto';
+        try {
+          var saved = JSON.parse(localStorage.getItem('spotifycraft-store') || 'null');
+          if (saved && saved.state && saved.state.themeMode) mode = saved.state.themeMode;
+        } catch (error) {
+          // stockage indisponible : on suit le système
+        }
+        var prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+        var theme = mode === 'auto' ? (prefersLight ? 'light' : 'dark') : mode;
+        document.documentElement.dataset.theme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'light' ? '#f6f6f6' : '#121212');
       })();
     </script>
     <meta

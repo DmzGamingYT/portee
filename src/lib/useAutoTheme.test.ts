@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { themeFromMatches } from './useAutoTheme';
+import { resolveTheme } from './useAutoTheme';
 
-describe('themeFromMatches', () => {
-  it('suit la préférence système jour/nuit', () => {
-    expect(themeFromMatches(true)).toBe('light');
-    expect(themeFromMatches(false)).toBe('dark');
+describe('resolveTheme', () => {
+  it('suit la préférence système en mode auto', () => {
+    expect(resolveTheme('auto', true)).toBe('light');
+    expect(resolveTheme('auto', false)).toBe('dark');
+  });
+
+  it('ignore le système quand un thème est forcé', () => {
+    expect(resolveTheme('light', false)).toBe('light');
+    expect(resolveTheme('dark', true)).toBe('dark');
   });
 });

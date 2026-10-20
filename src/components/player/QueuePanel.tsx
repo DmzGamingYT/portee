@@ -19,6 +19,7 @@ export default function QueuePanel({ onClose }: { onClose: () => void }) {
   const removeFromQueue = useStore((s) => s.removeFromQueue);
   const playTrack = useStore((s) => s.playTrack);
   const togglePlay = useStore((s) => s.togglePlay);
+  const radio = useStore((s) => s.radio);
 
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
@@ -126,7 +127,9 @@ export default function QueuePanel({ onClose }: { onClose: () => void }) {
               <div className="queue-label">À venir ({upcoming.length})</div>
               {upcoming.length === 0 && (
                 <p className="queue-empty muted">
-                  Rien après ce titre — utilisez « Lire ensuite » dans le menu d’un titre.
+                  {radio
+                    ? 'La radio va prolonger la file avec des titres proches de celui-ci.'
+                    : 'Rien après ce titre — utilisez « Lire ensuite » dans le menu d’un titre.'}
                 </p>
               )}
               {upcoming.map((t, i) => {

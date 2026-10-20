@@ -120,7 +120,13 @@ export default function LocalLibrary() {
       file,
       path: file.webkitRelativePath || undefined,
     }));
-    if (entries.every((entry) => entry.file.size === 0)) return;
+    // Dialogue annulé : rien à signaler. Sélection non vide mais uniquement
+    // des fichiers de 0 octet : là, un message vaut mieux qu'un silence.
+    if (entries.length === 0) return;
+    if (entries.every((entry) => entry.file.size === 0)) {
+      setImportError('Aucun des fichiers choisis ne contient de données audio (taille nulle).');
+      return;
+    }
 
     setFailures([]);
     setSummary(null);
@@ -392,24 +398,32 @@ export default function LocalLibrary() {
 
       {loading && !error && (
         <p className="muted empty-inline">Chargement de la bibliothèque locale…</p>
-      )}
-
-      {!loading && !error && tracks.length === 0 && (
-        <div className="empty-note local-empty">
-          <p>Aucun fichier local pour le moment.</p>
-          <p className="muted">
-            Importez quelques MP3 ou FLAC pour les écouter en entier, les liker et les ajouter à vos
-            playlists. Vous pouvez aussi garder iTunes pour la découverte.
-          </p>
-          <div className="dropzone-actions local-empty-actions">
-            <button className="btn accent" onClick={() => folderInputRef.current?.click()}>
-              {Icons.folder(16)} Importer un dossier
-            </button>
-            <button className="btn" onClick={() => inputRef.current?.click()}>
-              {Icons.upload(16)} Importer des fichiers
-            </button>
+      )}      {!loading && !error && tracks.length === 0 && (
+        <div className="local-features">
+          <div className="local-feature">
+            <span className="local-feature-icon">{Icons.music(20)}</span>
+            <strong>Lecture complète</strong>
+            <span className="muted">
+              Vos MP3, M4A, FLAC, WAV, OGG ou OPUS sont lus en entier, pas en extrait.
+            </span>
           </div>
-          <Link className="text-link" to="/">Retour à l’accueil</Link>
+          <div className="local-feature">
+            <span className="local-feature-icon">{Icons.image(20)}</span>
+            <strong>Pochettes intégrées</strong>
+            <span className="muted">
+              Les jaquettes ID3 (APIC) et FLAC (PICTURE) sont extraites automatiquement.
+            </span>
+          </div>
+          <div className="local-feature">
+            <span className="local-feature-icon">{Icons.lock(20)}</span>
+            <strong>100 % sur cet appareil</strong>
+            <span className="muted">
+              IndexedDB local : aucun fichier n’est envoyé à un serveur.
+            </span>
+          </div>
+          <p className="muted local-feature-note">
+            Envie de découvrir ? <Link className="text-link" to="/search">explorez le catalogue</Link>.
+          </p>
         </div>
       )}
 

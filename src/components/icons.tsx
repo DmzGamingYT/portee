@@ -121,6 +121,7 @@ export const Icons = {
   chevronLeft: stroke('M15 5.5 8.5 12l6.5 6.5', 2),
   chevronRight: stroke('M9 5.5 15.5 12 9 18.5', 2),
   chevronDown: stroke('M5.5 9 12 15.5 18.5 9', 2),
+  chevronUp: stroke('M5.5 15 12 8.5 18.5 15', 2),
   pen: stroke('M4 20l.9-4 11-11 3.1 3.1-11 11-4 .9zM14.5 5.5l3.1 3.1M4 20l4-.9'),
   person: stroke(
     'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5'
@@ -160,6 +161,14 @@ export const Icons = {
   disc: stroke(
     'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z'
   ),
+  /* préférences : deux réglages à glissière */
+  settings: stroke(
+    'M3 8h6M15 8h6M12 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM3 16h2M11 16h10M8 13a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'
+  ),
+  /** écran : « suivre le système » */
+  monitor: stroke('M3.5 5.5h17v11h-17zM9 20h6M12 16.5V20'),
+  /** égaliseur : trois bandes à curseur */
+  eq: stroke('M6 3.5v17M12 3.5v17M18 3.5v17M3.5 8h5M9.5 15.5h5M15.5 6.5h5'),
   spotify,
 };
 

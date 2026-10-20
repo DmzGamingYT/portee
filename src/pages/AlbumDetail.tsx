@@ -94,11 +94,26 @@ export default function AlbumDetail() {
     };
   }, [id, isSpotify]);
 
-  if (!id) return <div className="empty-note">Album inconnu.</div>;
-  if (!isSpotify && (!Number.isFinite(Number(id)) || Number(id) <= 0)) {
-    return <div className="empty-note">Album inconnu.</div>;
+  if (!id || (!isSpotify && (!Number.isFinite(Number(id)) || Number(id) <= 0))) {
+    return (
+      <div className="empty-note">
+        <p>Album inconnu.</p>
+        <Link className="btn" to="/search">
+          {Icons.search(16)} Chercher un album
+        </Link>
+      </div>
+    );
   }
-  if (error) return <div className="empty-note">Album inaccessible — vérifiez votre connexion puis réessayez.</div>;
+  if (error) {
+    return (
+      <div className="empty-note">
+        <p>Album inaccessible — vérifiez votre connexion puis réessayez.</p>
+        <Link className="btn" to="/search">
+          {Icons.search(16)} Retour à la recherche
+        </Link>
+      </div>
+    );
+  }
 
   if (!tracks) {
     return (
@@ -110,7 +125,19 @@ export default function AlbumDetail() {
     );
   }
 
-  if (tracks.length === 0) return <div className="empty-note">Aucune piste trouvée pour cet album.</div>;
+  if (tracks.length === 0) {
+    return (
+      <div className="empty-note">
+        <p>Aucune piste trouvée pour cet album.</p>
+        <p className="muted">
+          Le catalogue ne renvoie rien pour cet identifiant — il a peut-être été retiré.
+        </p>
+        <Link className="btn" to="/search">
+          {Icons.search(16)} Chercher un autre album
+        </Link>
+      </div>
+    );
+  }
 
   const first = tracks[0];
   const total = tracks.reduce((acc, t) => acc + (t.durationMs ?? 0), 0);
@@ -138,6 +165,7 @@ export default function AlbumDetail() {
             )}{' '}
             · {tracks.length} titre{tracks.length > 1 ? 's' : ''}
             {total > 0 ? ` · ${fmtTotal(total)}` : ''}
+            {tracks.some((t) => t.preview && !t.localId) ? ' · extraits 30 s' : ''}
             {playable.length < tracks.length ? ` · ${playable.length} lisible${playable.length > 1 ? 's' : ''}` : ''}
           </div>
           <div className="detail-actions">
@@ -164,7 +192,7 @@ export default function AlbumDetail() {
 function SkeletonRow() {
   return (
     <div className="track-row" aria-hidden>
-      <span className="row-index" />
+      <span className="row-play" />
       <div className="skeleton" style={{ width: 40, height: 40 }} />
       <div className="skeleton line" style={{ margin: 0 }} />
       <div className="skeleton line" style={{ margin: 0 }} />

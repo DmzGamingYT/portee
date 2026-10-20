@@ -3,6 +3,9 @@ import { persist } from 'zustand/middleware';
 import type { Artist, Track } from './types';
 import { moveIndex, nextIndex, resolvePlayable } from './lib/queue';
 import { isPlayable } from './lib/tracks';
+import type { ThemeMode } from './lib/useAutoTheme';
+import { clampGain, matchPreset, normalizeGains, presetGains } from './lib/equalizer';
+import { RADIO_MAX_QUEUE, radioTrackKey } from './lib/radio';
 
 /**
  * Genres proposés sur l'accueil (chips) — « Tous » retire le filtre.
@@ -46,6 +49,14 @@ export interface PlayerState {
   moveQueue: (from: number, to: number) => void;
   /** ajouter un titre à la file : juste après la piste courante, ou à la fin */
   enqueue: (track: Track, mode?: 'next' | 'end') => void;
+  /**
+   * Ajouter des titres en fin de file (radio) : les doublons d'identifiant ou
+   * d'édition (même titre, même artiste) sont ignorés.
+   */
+  appendToQueue: (tracks: Track[]) => void;
+  /** radio continue : prolonge la file avec des titres proches du dernier morceau */
+  radio: boolean;
+  toggleRadio: () => void;
   /** retirer une piste de la file par son index absolu */
   removeFromQueue: (index: number) => void;
   /** retirer une piste de partout (likes, historique, playlists, file) */
@@ -53,6 +64,21 @@ export interface PlayerState {
 }
 
 export interface AppState extends PlayerState {
+  /** thème choisi dans les préférences : système (défaut), clair ou sombre */
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+
+  /** égaliseur 10 bandes : gains en dB, un par bande (voir `lib/equalizer`) */
+  eqGains: number[];
+  /** égaliseur actif ; inactif, la courbe est plate (son non modifié) */
+  eqEnabled: boolean;
+  /** preset appliqué, ou `custom` dès qu'un curseur est bougé à la main */
+  eqPreset: string;
+  toggleEq: () => void;
+  setEqGain: (index: number, gain: number) => void;
+  setEqPreset: (id: string) => void;
+  resetEq: () => void;
+
   liked: Track[];
   toggleLike: (track: Track) => void;
 
@@ -105,9 +131,33 @@ export interface PlaylistLite {
 
 const MAX_HISTORY = 100;
 
+const THEME_MODES: readonly ThemeMode[] = ['auto', 'dark', 'light'];
+
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
+      themeMode: 'auto',
+      setThemeMode: (mode) => set({ themeMode: mode }),
+
+      eqGains: presetGains('flat'),
+      eqEnabled: false,
+      eqPreset: 'flat',
+      toggleEq: () => set((s) => ({ eqEnabled: !s.eqEnabled })),
+      setEqGain: (index, gain) =>
+        set((s) => {
+          const gains = s.eqGains.slice();
+          gains[index] = clampGain(gain);
+          // Bouger un curseur, c'est vouloir l'entendre : on active.
+          return { eqGains: gains, eqPreset: matchPreset(gains), eqEnabled: true };
+        }),
+      setEqPreset: (id) =>
+        set((s) => ({
+          eqGains: presetGains(id),
+          eqPreset: id,
+          eqEnabled: id === 'flat' ? s.eqEnabled : true,
+        })),
+      resetEq: () => set({ eqGains: presetGains('flat'), eqPreset: 'flat', eqEnabled: false }),
+
       liked: [],
       toggleLike: (track) =>
         set((s) => ({
@@ -181,6 +231,8 @@ export const useStore = create<AppState>()(
       muted: false,
       shuffle: false,
       repeat: 'off',
+      radio: true,
+      toggleRadio: () => set((s) => ({ radio: !s.radio })),
       crossfade: 0,
       dismissAudioError: () => set({ audioError: null }),
 
@@ -286,6 +338,25 @@ export const useStore = create<AppState>()(
           return { queue, audioError: null };
         }),
 
+      appendToQueue: (tracks) =>
+        set((s) => {
+          const ids = new Set(s.queue.map((t) => t.id));
+          const keys = new Set(s.queue.map(radioTrackKey));
+          const extra: Track[] = [];
+          for (const track of tracks) {
+            if (!isPlayable(track) || ids.has(track.id)) continue;
+            const key = radioTrackKey(track);
+            if (keys.has(key)) continue;
+            ids.add(track.id);
+            keys.add(key);
+            extra.push(track);
+          }
+          if (extra.length === 0) return {};
+          const room = RADIO_MAX_QUEUE - s.queue.length;
+          if (room <= 0) return {};
+          return { queue: s.queue.concat(extra.slice(0, room)) };
+        }),
+
       removeFromQueue: (position) =>
         set((s) => {
           if (position < 0 || position >= s.queue.length) return {};
@@ -336,7 +407,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'spotifycraft-store',
-      version: 6,
+      version: 8,
       partialize: (s) => {
         const {
           position: _position,
@@ -359,6 +430,10 @@ export const useStore = create<AppState>()(
       //            Spotify (OAuth PKCE).
       // v5 -> v6 : `theme` et `toggleTheme` disparaissent au profit du thème
       //            automatique jour/nuit (préférence système, sans bascule).
+      // v6 -> v7 : `themeMode` apparaît (système par défaut, clair ou sombre
+      //            au choix dans les préférences).
+      // v7 -> v8 : l'égaliseur apparaît (`eqGains`, `eqEnabled`, `eqPreset`),
+      //            courbe plate et désactivé par défaut.
       migrate: (persisted) => {
         const {
           user: _user,
@@ -382,6 +457,12 @@ export const useStore = create<AppState>()(
 
         return {
           ...state,
+          themeMode: THEME_MODES.includes(state.themeMode as ThemeMode)
+            ? (state.themeMode as ThemeMode)
+            : 'auto',
+          eqGains: normalizeGains(state.eqGains),
+          eqEnabled: state.eqEnabled === true,
+          eqPreset: matchPreset(normalizeGains(state.eqGains)),
           liked: Array.isArray(state.liked) ? state.liked.filter(isTrack) : [],
           history: Array.isArray(state.history) ? state.history.filter(isTrack) : [],
           followed: Array.isArray(state.followed) ? state.followed.filter(isArtist) : [],

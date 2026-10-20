@@ -81,10 +81,14 @@ export default function ArtistDetail() {
         setAlbums(list);
         // Le nom d'artiste d'un album est plus fiable que celui d'un titre
         // (un titre peut lister « Daft Punk, Pharrell Williams… »).
+        // iTunes ne fournit pas de photo d'artiste : la pochette du premier
+        // album fait un visuel de bannière crédible (et reste une vraie image
+        // de l'artiste, pas un avatar génériqué).
         setArtist({
           id: String(artistId),
           name: list[0]?.artist || tracks[0]?.artist || '',
           genre: list[0]?.genre || tracks[0]?.genre || undefined,
+          cover: list[0]?.cover ?? tracks[0]?.cover,
         });
         setError(tracks.length === 0 && list.length === 0);
       }

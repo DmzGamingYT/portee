@@ -120,24 +120,37 @@ export default function SearchPage() {
 
   return (
     <div className="search-page">
-      <div className="search-page-field">
-        <input
-          className="search-big"
-          placeholder="Titre, artiste, album…"
-          value={pending}
-          onChange={(e) => setPending(e.target.value)}
-          aria-label="Rechercher"
-          autoComplete="off"
-        />
-        {busy && <span className="spinner" aria-hidden />}
-      </div>
+      {/* Sans requête : le grand champ est le point d'entrée. Avec une requête,
+          le champ de la barre du haut fait déjà le travail — on affiche à la
+          place un en-tête de résultats, plus lisible qu'un doublon. */}
+      {q ? (
+        <div className="search-head">
+          <span className="search-kicker">Résultats pour</span>
+          <h1 className="search-term">« {q} »</h1>
+          {busy && <span className="spinner" aria-hidden />}
+        </div>
+      ) : (
+        <div className="search-page-field">
+          <input
+            className="search-big"
+            placeholder="Titre, artiste, album…"
+            value={pending}
+            onChange={(e) => setPending(e.target.value)}
+            aria-label="Rechercher"
+            autoComplete="off"
+          />
+          {busy && <span className="spinner" aria-hidden />}
+        </div>
+      )}
 
       {data && q && total > 0 && (
         <div className="source-badge" title="Provenance des métadonnées et des extraits audio">
-          {data.source === 'spotify' ? 'Métadonnées Spotify' : 'Résultats iTunes'}
-          {data.previewSource === 'itunes' && ' · extraits iTunes'}
-          {data.previewSource === 'mixed' && ' · extraits mixtes'}
-          {data.previewSource === 'none' && ' · sans extrait'}
+          {data.source === 'spotify' ? 'Métadonnées Spotify' : 'Catalogue iTunes'}
+          <span className="source-badge__detail">
+            {data.previewSource === 'itunes' && ' · extraits officiels 30 s'}
+            {data.previewSource === 'mixed' && ' · extraits mixtes'}
+            {data.previewSource === 'none' && ' · sans extrait'}
+          </span>
         </div>
       )}
 
@@ -213,7 +226,7 @@ function SearchSkeleton() {
     <div className="track-list" aria-hidden>
       {Array.from({ length: 8 }).map((_, i) => (
         <div className="track-row" key={i}>
-          <span className="row-index" />
+          <span className="row-play" />
           <div className="skeleton" style={{ width: 40, height: 40 }} />
           <div className="skeleton line" style={{ margin: 0 }} />
           <div className="skeleton line" style={{ margin: 0 }} />

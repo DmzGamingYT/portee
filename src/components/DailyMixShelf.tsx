@@ -63,8 +63,8 @@ export function DailyMixCard({ mix }: { mix: DailyMix }) {
       <span className="card-title" title={mix.title}>
         {mix.title}
       </span>
-      <span className="card-sub">
-        {mix.reason} · {mix.tracks.length} titre{mix.tracks.length > 1 ? 's' : ''}
+      <span className="card-sub" title={`${mix.reason} · ${mix.tracks.length} titres`}>
+        {mix.tracks.length} titre{mix.tracks.length > 1 ? 's' : ''} · {mix.reason}
       </span>
     </article>
   );

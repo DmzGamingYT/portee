@@ -1,0 +1,6 @@
+{
+  "crate": "spotifycraft-import-core",
+  "inputs": "43196972d99815bfed5550c2e514b0c49d6162c8322098fa9ccab12cec055609",
+  "files": 3,
+  "package": "src/wasm/import-core"
+}

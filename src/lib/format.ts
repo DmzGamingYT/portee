@@ -40,8 +40,14 @@ export function fmtBytes(bytes: number): string {
   return unit === 0 && rounded > 1 ? `${label}s` : label;
 }
 
-/** Dégradé CSS stable dérivé d'une chaîne (id ou nom), esthétique Spotify. */
+/**
+ * Dégradé CSS stable dérivé d'une chaîne (id ou nom), esthétique Spotify.
+ *
+ * Les teintes restent volontairement sombres et peu saturées : le titre de la
+ * bannière est écrit en blanc, il doit rester lisible, et un aplat clair jure
+ * avec le fond sombre du reste de l'application.
+ */
 export function gradientOf(seed: string): string {
   const hue = [...seed].reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) % 360, 7);
-  return `linear-gradient(135deg, hsl(${hue} 70% 45%), hsl(${(hue + 60) % 360} 70% 30%))`;
+  return `linear-gradient(135deg, hsl(${hue} 56% 34%), hsl(${(hue + 22) % 360} 60% 21%))`;
 }

@@ -7,6 +7,13 @@ import type { Track } from '../types';
 import { Cover } from './Cards';
 import Icons from './icons';
 
+/** Info-bulle de durée : un extrait de 30 s n'a pas la durée de l'album. */
+function durationHint(track: Track): string {
+  if (track.localId) return 'Fichier local — lecture complète';
+  if (!track.durationMs) return 'Durée indisponible';
+  return `Extrait de 30 s · durée complète ${fmtDuration(track.durationMs)}`;
+}
+
 /**
  * Ligne d'un titre façon Spotify : pochette, titre + artiste, album, durée,
  * like, menu (playlists, lire ensuite, file d'attente). Un clic sur la ligne
@@ -75,20 +82,28 @@ export default function TrackRow({
     <div
       className={`track-row ${active ? 'active' : ''} ${isPlayable(track) ? '' : 'unplayable'} ${hover.hovering ? 'hovering' : ''}`}
       onClick={onRowClick}
-      role="button"
-      tabIndex={0}
-      aria-label={`Lire ${track.title} de ${track.artist}`}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          onRowClick();
-        }
-      }}
       {...hover.bind()}
     >
-      <span className="row-index" aria-hidden>
-        {active && playing ? Icons.pause(14) : active ? Icons.play(14) : ''}
-      </span>
+      {/* La ligne entière est cliquable à la souris, mais le seul contrôle
+          clavier est ce bouton : imbriquer un `role="button"` autour des
+          liens et des menus de la ligne rendait le DOM invalide pour les
+          lecteurs d'écran. */}
+      <button
+        className="row-play"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRowClick();
+        }}
+        disabled={!isPlayable(track)}
+        title={active && playing ? 'Mettre en pause' : `Lire ${track.title}`}
+        aria-label={
+          active && playing
+            ? `Mettre en pause ${track.title} de ${track.artist}`
+            : `Lire ${track.title} de ${track.artist}`
+        }
+      >
+        {active && playing ? Icons.pause(14) : Icons.play(14)}
+      </button>
 
       <div className="row-cover">
         <Cover src={track.cover} alt="" />
@@ -121,73 +136,79 @@ export default function TrackRow({
         </div>
       )}
 
-      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-        <button
-          className={`icon-btn small ${isLiked ? 'accent' : ''}`}
-          onClick={() => toggleLike(track)}
-          title={isLiked ? 'Retirer des likés' : 'Liker'}
-          aria-label="Like"
-        >
-          {Icons.heart(isLiked)}
-        </button>
+      <div className="row-end" onClick={(e) => e.stopPropagation()}>
+        {/* Durée toujours lisible ; les actions prennent sa place au survol. */}
+        <span className="row-duration" title={durationHint(track)}>
+          {fmtDuration(track.durationMs)}
+        </span>
 
-        <details
-          className="menu"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
-          <summary className="icon-btn small" title="Actions du titre" aria-label="Actions du titre">
-            {Icons.plus(16)}
-          </summary>
-          <div
-            className="menu-body"
-            onClick={(e) => {
-              e.stopPropagation();
-              closeMenu();
-            }}
+        <div className="row-buttons">
+          <button
+            className={`icon-btn small ${isLiked ? 'accent' : ''}`}
+            onClick={() => toggleLike(track)}
+            title={isLiked ? 'Retirer des likés' : 'Ajouter aux titres likés'}
+            aria-label={isLiked ? `Retirer ${track.title} des titres likés` : `Aimer ${track.title}`}
+            aria-pressed={isLiked}
           >
-            <button
-              className="menu-item"
-              disabled={!isPlayable(track)}
-              onClick={() => enqueue(track, 'next')}
-            >
-              {Icons.next(14)} Lire ensuite
-            </button>
-            <button
-              className="menu-item"
-              disabled={!isPlayable(track)}
-              onClick={() => enqueue(track, 'end')}
-            >
-              {Icons.queue(14)} Ajouter à la file
-            </button>
-            <div className="menu-sep" />
-            <button
-              className="menu-item"
-              onClick={() => {
-                const id = createPlaylist(`Playlist ${playlists.length + 1}`);
-                addToPlaylist(id, track);
+            {Icons.heart(isLiked)}
+          </button>
+
+          <details
+            className="menu"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <summary className="icon-btn small" title="Actions du titre" aria-label="Actions du titre">
+              {Icons.plus(16)}
+            </summary>
+            <div
+              className="menu-body"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeMenu();
               }}
             >
-              {Icons.plus(14)} Nouvelle playlist
-            </button>
-            {playlists.length > 0 && <div className="menu-sep" />}
-            {playlists.map((p) => (
-              <button key={p.id} className="menu-item" onClick={() => addToPlaylist(p.id, track)}>
-                {Icons.note(14)} {p.name}
+              <button
+                className="menu-item"
+                disabled={!isPlayable(track)}
+                onClick={() => enqueue(track, 'next')}
+              >
+                {Icons.next(14)} Lire ensuite
               </button>
-            ))}
-            {onRemove && (
-              <>
-                <div className="menu-sep" />
-                <button className="menu-item danger" onClick={onRemove}>
-                  {Icons.trash(14)} {removeLabel}
+              <button
+                className="menu-item"
+                disabled={!isPlayable(track)}
+                onClick={() => enqueue(track, 'end')}
+              >
+                {Icons.queue(14)} Ajouter à la file
+              </button>
+              <div className="menu-sep" />
+              <button
+                className="menu-item"
+                onClick={() => {
+                  const id = createPlaylist(`Playlist ${playlists.length + 1}`);
+                  addToPlaylist(id, track);
+                }}
+              >
+                {Icons.plus(14)} Nouvelle playlist
+              </button>
+              {playlists.length > 0 && <div className="menu-sep" />}
+              {playlists.map((p) => (
+                <button key={p.id} className="menu-item" onClick={() => addToPlaylist(p.id, track)}>
+                  {Icons.note(14)} {p.name}
                 </button>
-              </>
-            )}
-          </div>
-        </details>
-
-        <span className="row-duration">{fmtDuration(track.durationMs)}</span>
+              ))}
+              {onRemove && (
+                <>
+                  <div className="menu-sep" />
+                  <button className="menu-item danger" onClick={onRemove}>
+                    {Icons.trash(14)} {removeLabel}
+                  </button>
+                </>
+              )}
+            </div>
+          </details>
+        </div>
       </div>
     </div>
   );
