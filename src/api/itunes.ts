@@ -152,11 +152,34 @@ function rankArtists(artists: Artist[], term: string): Artist[] {
 }
 
 /**
- * Le proxy n'existe qu'en développement (plugin Vite). Sur un hébergement
- * statique, le premier appel renvoie 404 : on retient alors qu'il faut passer
- * en direct, plutôt que de provoquer un 404 dans la console à chaque requête.
+ * Le proxy n'existe qu'en développement (plugin Vite) ou derrière un petit
+ * relais. On le sonde **une seule fois** : sur un hébergement statique, les
+ * écrans qui chargent plusieurs étagères en parallèle ne doivent pas produire
+ * un 404 par requête dans la console. Tous les appels attendent la même sonde.
  */
-let proxyUsable = true;
+const PROXY_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_ITUNES_PROXY === '1';
+
+let proxyProbe: Promise<boolean> | null = PROXY_ENABLED ? null : Promise.resolve(false);
+
+function probeProxy(): Promise<boolean> {
+  if (!proxyProbe) {
+    proxyProbe = (async () => {
+      try {
+        const res = await fetch(`${PROXY_PREFIX}search?term=probe&entity=song&limit=1`, {
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(4000),
+        });
+        const type = res.headers.get('content-type') ?? '';
+        // Une page HTML (fallback SPA) ou un 404 = pas de proxy ici.
+        return res.ok && type.includes('application/json');
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return proxyProbe;
+}
 
 /**
  * Interroge `search` ou `lookup` via le proxy local puis en direct.
@@ -166,13 +189,14 @@ async function itFetch(path: string, signal?: AbortSignal): Promise<any> {
   if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
   const { signal: sig, cleanup } = combinedSignal(signal);
   try {
-    // 1) Proxy local (dev / preview Vite).
-    if (proxyUsable) {
+    // 1) Proxy local (dev / preview Vite, ou relais auto-hébergé).
+    if (await probeProxy()) {
       try {
         return await fetchJson(`${PROXY_PREFIX}${path}`, sig);
       } catch (proxyErr) {
         if (isAbort(proxyErr)) throw proxyErr;
-        proxyUsable = false;
+        // Le proxy a disparu : on repasse en direct pour les appels suivants.
+        proxyProbe = Promise.resolve(false);
       }
     }
     // 2) Repli direct : iTunes renvoie ACAO:* donc le navigateur l'accepte.

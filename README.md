@@ -204,7 +204,7 @@ via un petit service (Cloudflare Worker, Netlify/Vercel function) — le front n
 | --- | --- |
 | **GitHub Pages** | automatique : un push sur `main` reconstruit `dist/` avec `VITE_BASE=/spotifycraft/` et publie la branche `gh-pages`. |
 | **Autre hébergement statique** | `npm run build`, puis publier `dist/` (Netlify, Vercel, Cloudflare Pages…). Sans proxy, l'app appelle iTunes en direct. |
-| **Avec proxys** | servir `dist/` derrière un petit Worker/Function qui relaie `/it/api/*` (et `/sp/api/*` pour Spotify). |
+| **Avec proxys** | servir `dist/` derrière un petit Worker/Function qui relaie `/it/api/*` (et `/sp/api/*` pour Spotify), puis construire avec `VITE_ITUNES_PROXY=1`. |
 
 ## 🧪 Qualité & tests
 
