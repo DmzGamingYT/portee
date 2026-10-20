@@ -4,6 +4,7 @@
 
 **Un lecteur musical open source, complet et sans compte obligatoire — recherche, albums, artistes, playlists, file d'attente, paroles et extraits officiels. Aucune clé API.**
 
+[![Démo en ligne](https://img.shields.io/badge/d%C3%A9mo-en%20ligne-1db954.svg)](https://dmzgamingyt.github.io/spotifycraft/)
 [![CI](https://github.com/DmzGamingYT/spotifycraft/actions/workflows/ci.yml/badge.svg)](https://github.com/DmzGamingYT/spotifycraft/actions/workflows/ci.yml)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-1db954.svg)](LICENSE)
 [![React 18](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
@@ -12,7 +13,9 @@
 [![Rust → WASM](https://img.shields.io/badge/Rust-%E2%86%92%20WASM-b7410e.svg)](crates/import-core)
 ![Sans clé API](https://img.shields.io/badge/API%20key-none-1db954.svg)
 
-[Fonctionnalités](#-fonctionnalités) · [Aperçu](#-aperçu) · [Démarrage](#-démarrage-rapide) · [Architecture](#-architecture) · [Qualité](#-qualité--tests)
+[Fonctionnalités](#-fonctionnalités) · [Aperçu](#-aperçu) · [Démo en ligne](#-démo-en-ligne) · [Démarrage](#-démarrage-rapide) · [Architecture](#-architecture)
+
+<a href="https://dmzgamingyt.github.io/spotifycraft/"><img src="https://img.shields.io/badge/%E2%96%B6%20Ouvrir%20Port%C3%A9e-en%20ligne-1db954?style=for-the-badge" alt="Ouvrir Portée en ligne" height="38"></a>
 
 <img src="docs/screenshots/home.jpg" alt="Accueil de Portée : Daily Mix, genres et nouveautés" width="100%">
 
@@ -33,6 +36,16 @@ Une interface de musique complète qui tourne **entièrement dans le navigateur*
 
 > **Portée** est l'application musique de la collection **[Craftline](https://site-837caca50a67485a994f4549b9ef7404.freebuff.page/collection/)** —
 > avec **Séquence** (vidéo) et **Battement** (santé). Même promesse : open source, sans abonnement, sans télémétrie.
+
+## 🌍 Démo en ligne
+
+**<https://dmzgamingyt.github.io/spotifycraft/>**
+
+La démo est un build statique publié automatiquement par GitHub Actions à chaque
+push sur `main` (workflow `.github/workflows/pages.yml`). Le catalogue iTunes
+étant ouvert aux appels navigateur (`Access-Control-Allow-Origin: *`), aucune
+clé ni aucun serveur ne sont nécessaires. La connexion Spotify, elle, demande
+votre propre `VITE_SPOTIFY_CLIENT_ID` (voir plus bas).
 
 ## 🖼️ Aperçu
 
@@ -184,6 +197,14 @@ src/pages/                     Accueil, Recherche, Bibliothèque, Local, Daily M
 un navigateur, et le proxy Spotify évite d'exposer les appels tout en gardant un
 cache court côté serveur. Pour un hébergement statique, exposez les mêmes routes
 via un petit service (Cloudflare Worker, Netlify/Vercel function) — le front ne change pas.
+
+## 📦 Déploiement
+
+| Cible | Marche à suivre |
+| --- | --- |
+| **GitHub Pages** | automatique : un push sur `main` reconstruit `dist/` avec `VITE_BASE=/spotifycraft/` et publie la branche `gh-pages`. |
+| **Autre hébergement statique** | `npm run build`, puis publier `dist/` (Netlify, Vercel, Cloudflare Pages…). Sans proxy, l'app appelle iTunes en direct. |
+| **Avec proxys** | servir `dist/` derrière un petit Worker/Function qui relaie `/it/api/*` (et `/sp/api/*` pour Spotify). |
 
 ## 🧪 Qualité & tests
 

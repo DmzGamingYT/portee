@@ -152,6 +152,13 @@ function rankArtists(artists: Artist[], term: string): Artist[] {
 }
 
 /**
+ * Le proxy n'existe qu'en développement (plugin Vite). Sur un hébergement
+ * statique, le premier appel renvoie 404 : on retient alors qu'il faut passer
+ * en direct, plutôt que de provoquer un 404 dans la console à chaque requête.
+ */
+let proxyUsable = true;
+
+/**
  * Interroge `search` ou `lookup` via le proxy local puis en direct.
  * Lève `AbortError` si `signal` est annulé, sinon lève l'erreur réseau/HTTP.
  */
@@ -160,15 +167,16 @@ async function itFetch(path: string, signal?: AbortSignal): Promise<any> {
   const { signal: sig, cleanup } = combinedSignal(signal);
   try {
     // 1) Proxy local (dev / preview Vite).
-    try {
-      const viaProxy = await fetchJson(`${PROXY_PREFIX}${path}`, sig);
-      return viaProxy;
-    } catch (proxyErr) {
-      if (isAbort(proxyErr)) throw proxyErr;
-      // 2) Repli direct : iTunes renvoie ACAO:* donc le navigateur l'accepte.
-      const viaDirect = await fetchJson(`${ITUNES_BASE}/${path}`, sig);
-      return viaDirect;
+    if (proxyUsable) {
+      try {
+        return await fetchJson(`${PROXY_PREFIX}${path}`, sig);
+      } catch (proxyErr) {
+        if (isAbort(proxyErr)) throw proxyErr;
+        proxyUsable = false;
+      }
     }
+    // 2) Repli direct : iTunes renvoie ACAO:* donc le navigateur l'accepte.
+    return await fetchJson(`${ITUNES_BASE}/${path}`, sig);
   } finally {
     cleanup();
   }
