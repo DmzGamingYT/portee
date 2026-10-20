@@ -1,0 +1,99 @@
+name: CI
+
+# À chaque push (toutes les branches) et sur chaque pull request.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Une nouvelle poussée annule les vérifications devenues obsolètes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Noyau Rust (WASM) + cargo test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/import-core/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('crates/import-core/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Cible WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Compilation du crate pour le WebAssembly
+        run: >-
+          cargo build --release --locked
+          --manifest-path crates/import-core/Cargo.toml
+          --target wasm32-unknown-unknown
+
+      - name: Tests du crate
+        run: cargo test --locked --manifest-path crates/import-core/Cargo.toml
+
+  wasm:
+    name: Paquet WASM à jour par rapport au crate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # wasm-pack est récupéré en binaire précompilé et épinglé : le paquet doit
+      # être reconstruit avec la version qui produit la colle JS actuelle
+      # (vérifiée octet par octet, voir scripts/wasm-verify.mjs).
+      - name: wasm-pack
+        run: |
+          curl -sSfL "https://github.com/rustwasm/wasm-pack/releases/download/v0.15.0/wasm-pack-v0.15.0-x86_64-unknown-linux-musl.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/wasm-pack-v0.15.0-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/wasm-pack-v0.15.0-x86_64-unknown-linux-musl/wasm-pack" --version
+
+      - name: Cible WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+
+      # Pas de `npm ci` : les scripts de vérification n'utilisent que Node.
+      # Le binaire .wasm n'est pas comparé octet par octet (il embarque les
+      # chemins du registre Cargo, différents d'une machine à l'autre) : voir
+      # scripts/wasm-verify.mjs, qui compare le cachet des entrées du crate,
+      # les fichiers générés à l'octet près et l'interface du binaire.
+      - name: Reconstruction avec wasm-pack puis comparaison
+        run: npm run wasm:verify
+
+  app:
+    name: Application (typecheck, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` installe exactement le lockfile, sans le modifier.
+      - run: npm ci
+
+      # TypeScript strict, Vitest (dont le benchmark du noyau WASM, chargé
+      # depuis le binaire versionné), puis build de production.
+      - run: npm run check
